@@ -1,0 +1,89 @@
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+
+import { buildServer } from "./app.js";
+
+describe("HTTP público", () => {
+  it("expõe um healthcheck operacional sem depender de artefato diário", async () => {
+    const app = await buildServer({
+      dataDirectory: "/tmp/cruzaverso-health-test",
+      serveFrontend: false,
+    });
+
+    const response = await app.inject({ method: "GET", url: "/api/health" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      status: "ok",
+      service: "cruzaverso",
+      timeZone: "America/Sao_Paulo",
+    });
+
+    await app.close();
+  });
+
+  it("persiste e republica o mesmo mapa diário canônico", async () => {
+    const dataDirectory = await mkdtemp(join(tmpdir(), "cruzaverso-daily-"));
+    const app = await buildServer({ dataDirectory, serveFrontend: false });
+
+    const first = await app.inject({
+      method: "GET",
+      url: "/api/daily?date=2026-08-23",
+    });
+    const second = await app.inject({
+      method: "GET",
+      url: "/api/daily?date=2026-08-23",
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.json()).toEqual(first.json());
+    expect(first.json().map.date).toBe("2026-08-23");
+    expect(first.json().map.objects.filter((object: { type: string }) => object.type === "key")).toHaveLength(3);
+    await expect(readFile(join(dataDirectory, "cruzaverso.sqlite"))).resolves.toBeTruthy();
+
+    await app.close();
+  });
+
+  it("aceita telemetria anônima mínima e respeita opt-out", async () => {
+    const dataDirectory = await mkdtemp(join(tmpdir(), "cruzaverso-telemetry-"));
+    const app = await buildServer({ dataDirectory, serveFrontend: false });
+
+    const accepted = await app.inject({
+      method: "POST",
+      url: "/api/telemetry",
+      payload: {
+        runId: "6e2eca51-f32b-41bd-8a47-b61945788156",
+        mapId: "2026-08-23-medium-demo",
+        event: "word_solved",
+        elapsedActiveMs: 1234,
+        payload: { solvedWords: 2 },
+      },
+    });
+    const declined = await app.inject({
+      method: "POST",
+      url: "/api/telemetry",
+      payload: { optOut: true },
+    });
+
+    expect(accepted.statusCode).toBe(202);
+    expect(declined.statusCode).toBe(204);
+    await app.close();
+  });
+
+  it("mantém a inspeção do mundo atrás da flag de debug", async () => {
+    const dataDirectory = await mkdtemp(join(tmpdir(), "cruzaverso-debug-"));
+    const publicApp = await buildServer({ dataDirectory, serveFrontend: false, debug: false });
+    const hidden = await publicApp.inject({ method: "GET", url: "/api/debug/world?date=2026-08-23" });
+    expect(hidden.statusCode).toBe(404);
+    await publicApp.close();
+
+    const debugApp = await buildServer({ dataDirectory, serveFrontend: false, debug: true });
+    const visible = await debugApp.inject({ method: "GET", url: "/api/debug/world?date=2026-08-23" });
+    expect(visible.statusCode).toBe(200);
+    expect(visible.json().world.report.valid).toBe(true);
+    expect(visible.json().map.report.valid).toBe(true);
+    await debugApp.close();
+  });
+});

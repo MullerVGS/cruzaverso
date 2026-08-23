@@ -1,0 +1,19 @@
+services:
+  cruzaverso:
+    build:
+      context: .
+      target: runtime
+    image: cruzaverso:local
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      DATA_DIR: /data
+      ENABLE_DEBUG: ${ENABLE_DEBUG:-false}
+      TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
+    ports:
+      - "127.0.0.1:${CRUZAVERSO_PORT:-3000}:3000"
+    volumes:
+      - cruzaverso-data:/data
+
+volumes:
+  cruzaverso-data:

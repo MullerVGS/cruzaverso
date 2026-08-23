@@ -1,0 +1,43 @@
+{
+  "name": "cruzaverso",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "tsx server/dev.ts",
+    "build": "tsc --noEmit && vite build",
+    "start": "tsx server/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:seeds": "vitest run test/seeds",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "generate": "tsx scripts/generate-daily.ts",
+    "validate:content": "tsx scripts/validate-content.ts"
+  },
+  "dependencies": {
+    "@fastify/static": "10.1.3",
+    "better-sqlite3": "13.0.3",
+    "fastify": "5.12.1",
+    "luxon": "3.7.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tsx": "4.23.12",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/better-sqlite3": "7.6.13",
+    "@types/luxon": "3.7.1",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.1.0",
+    "typescript": "7.0.2",
+    "vite": "8.2.2",
+    "vitest": "4.1.11"
+  }
+}
