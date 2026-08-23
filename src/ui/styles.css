@@ -203,14 +203,24 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .atlas:active { cursor: grabbing; }
 .paper-wash { fill: rgb(245 230 195 / 39%); stroke: rgb(71 63 44 / 30%); stroke-width: 2; }
 .biome-washes line { opacity: .17; mix-blend-mode: multiply; }
+.fog-layer { pointer-events: none; }
+.fog-wash { fill: url("#fog-haze"); }
+.word-frame { fill: none; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; transition: opacity .2s, stroke .2s; }
+.word-frame.is-distant { stroke: rgb(54 61 56 / 24%); stroke-width: 1; opacity: .42; }
+.word-frame.is-detailed { stroke: rgb(75 79 67 / 46%); stroke-width: 1.4; opacity: .8; }
+.word-frame.is-available { stroke: rgb(111 87 50 / 62%); stroke-width: 1.8; opacity: 1; }
+.word-frame.is-solved { stroke: rgb(42 71 62 / 74%); stroke-width: 2; }
+.word-frame.is-selected { stroke: #a36f29; stroke-width: 3; opacity: 1; filter: drop-shadow(0 2px 2px rgb(67 48 25 / 20%)); }
 .crossword-cell { cursor: pointer; }
-.crossword-cell rect { fill: rgb(251 245 225 / 82%); stroke: #626659; stroke-width: 1.4; vector-effect: non-scaling-stroke; transition: opacity .2s, fill .2s, stroke .2s; }
-.crossword-cell.is-fogged rect { fill: rgb(47 58 54 / 32%); stroke: rgb(55 61 57 / 28%); stroke-dasharray: 3 3; opacity: .48; }
-.crossword-cell.is-revealed rect { filter: url(#paper-shadow); }
+.crossword-cell rect { fill: rgb(247 239 216 / 62%); stroke: #626659; stroke-width: 1.4; vector-effect: non-scaling-stroke; transition: opacity .2s, fill .2s, stroke .2s; }
+.crossword-cell.is-distant rect { fill: rgb(47 58 54 / 18%); stroke: rgb(50 59 54 / 28%); opacity: .6; }
+.crossword-cell.is-detailed rect { filter: url(#paper-shadow); }
+.crossword-cell.is-available rect { fill: rgb(255 249 231 / 92%); stroke: #5e665c; }
 .crossword-cell.is-available:hover rect { fill: #fff9e9; stroke: #9a7441; stroke-width: 2; }
 .crossword-cell.is-selected rect { fill: #fae9b9; stroke: #a67432; stroke-width: 2.3; }
+.crossword-cell.is-active rect { fill: #fff7df; stroke: #263e36; stroke-width: 3; }
 .crossword-cell.is-solved rect { fill: #f7ecd0; stroke: #344b43; stroke-width: 2; }
-.crossword-cell text { font-size: 21px; text-anchor: middle; pointer-events: none; user-select: none; }
+.cell-letters { pointer-events: none; user-select: none; }.cell-letters text { font-size: 21px; text-anchor: middle; }
 .pencil-letter { fill: #6d7471; font-family: "Segoe Print", cursive; font-style: italic; opacity: .82; }
 .ink-letter { fill: #243934; font-family: Georgia, serif; font-weight: 750; }
 .explorer-marker { filter: drop-shadow(0 3px 3px rgb(0 0 0 / 35%)); transition: transform .28s cubic-bezier(.3,.8,.3,1); }
@@ -220,13 +230,19 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .key-object { fill: none; stroke: #8d6226; stroke-width: 3; }
 .exit-object { fill: rgb(68 91 77 / 12%); stroke: #40594e; stroke-width: 3; }
 .exit-object.is-locked { opacity:.68; stroke:#6d6050; stroke-dasharray:3 2; }.exit-object.is-unlocked { fill:rgb(199 157 78 / 28%); stroke:#986d2e; filter:drop-shadow(0 0 5px rgb(217 175 92 / 65%)); }
-.powerup-object { fill: #cf9e45; stroke: #fff0bd; stroke-width: 1.6; }
+.powerup-object { fill: #cf9e45; stroke: #fff0bd; stroke-width: 1.6; pointer-events: visiblePainted; cursor: help; transition: opacity .2s; }
+.powerup-object.is-under-letter { opacity: .14; }
+.powerup-object.is-under-letter:hover { opacity: .22; }
+.map-powerup-tooltip { position: fixed; z-index: 45; width: min(260px, calc(100vw - 28px)); display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px; color: #f6edd8; border: 1px solid rgb(225 196 132 / 28%); border-radius: 5px; background: #293a34; box-shadow: 0 8px 24px rgb(0 0 0 / 34%); pointer-events: none; font-size: .67rem; line-height: 1.42; }
+.map-powerup-tooltip > i { color: #e1b45f; font-family: Georgia, serif; font-size: 1.25rem; font-style: normal; line-height: 1; }
+.map-powerup-tooltip > span { display: flex; flex-direction: column; gap: 2px; }.map-powerup-tooltip strong { color: #f4d99f; font-size: .73rem; }
 .direction-arrow path { fill: #b75445; animation: point 1s ease-in-out infinite alternate; }
 @keyframes point { to { transform: translateX(5px); } }
 .map-legend { position: absolute; left: 36px; bottom: 30px; display: flex; gap: 14px; padding: 8px 12px; border: 1px solid rgb(87 72 49 / 22%); border-radius: 4px; color: #4f554f; background: rgb(245 233 204 / 86%); box-shadow: 0 3px 12px rgb(0 0 0 / 18%); font-size: .62rem; font-weight: 700; }
 .map-controls { position:absolute; top:34px; right:34px; display:grid; gap:5px; padding:6px; border:1px solid rgb(85 72 49 / 22%); border-radius:5px; background:rgb(244 231 198 / 88%); box-shadow:0 5px 16px rgb(0 0 0 / 18%); }
 .map-controls button { width:30px; height:30px; display:grid; place-items:center; padding:0; border:0; border-bottom:1px solid rgb(74 72 58 / 13%); color:#46534d; background:transparent; cursor:pointer; font-family:Georgia,serif; font-size:1rem; }.map-controls button:hover { color:#f8ead0; border-radius:3px; background:#5b6d64; }
 .map-legend span { display: flex; align-items: center; gap: 5px; white-space: nowrap; }.dot { width: 8px; height: 8px; border-radius: 50%; }.dot.cotidiano { background:#758c68 }.dot.ciencia { background:#5583a2 }.dot.historia { background:#b1814e }.dot.cultura { background:#a8616c }
+.fog-legend { padding-right: 10px; border-right: 1px solid rgb(74 72 58 / 18%); }.fog-swatch { width: 13px; height: 9px; border: 1px solid rgb(53 62 57 / 30%); border-radius: 7px; background: rgb(55 68 63 / 24%); box-shadow: 3px -2px 0 rgb(55 68 63 / 10%); }
 
 /* Clue desk */
 .clue-desk { min-height: 0; display: flex; flex-direction: column; padding: 20px 18px 16px; border-left: 1px solid rgb(239 226 190 / 13%); background: #202a27; box-shadow: -8px 0 28px rgb(0 0 0 / 16%); }
@@ -243,8 +259,12 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .biome-cotidiano { color:#617052 }.biome-ciencia { color:#49738e }.biome-historia { color:#936937 }.biome-cultura-pop { color:#96535d }
 .current-clue > p { min-height: 55px; margin: 15px 0 18px; font-family: Georgia, serif; font-size: .94rem; line-height: 1.48; }
 .current-clue form > label { display: block; margin-bottom: 5px; color: #827967; font-size: .59rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.answer-pattern { display: flex; align-items: center; gap: 3px; width: 100%; margin: 9px 0 12px; padding: 2px 1px 4px; }
+.answer-slot { min-width: 0; max-width: 34px; height: 34px; flex: 1 1 27px; display: grid; place-items: center; padding: 0; color: #59635e; border: 1px solid #777969; border-radius: 2px; background: rgb(255 251 235 / 48%); font-family: "Segoe Print", cursive; font-size: clamp(.68rem, 1vw, .92rem); text-transform: uppercase; cursor: text; }
+.answer-slot.active { color: #263d35; border: 2px solid #a46f2d; background: #fff4d3; box-shadow: 0 0 0 2px rgb(164 111 45 / 14%); }
+.answer-slot.in-ink { color: #263d35; border-color: #3b554b; background: rgb(237 228 200 / 78%); font-family: Georgia, serif; font-weight: 800; cursor: default; }
 .answer-line { display: grid; grid-template-columns: 1fr auto; gap: 7px; }
-.answer-line input { min-width: 0; height: 42px; padding: 0 10px; border: 0; border-bottom: 2px solid #5d655d; color: #4d5753; background: rgb(255 255 255 / 22%); font-family: "Segoe Print", cursive; font-size: 1rem; letter-spacing: .12em; text-transform: uppercase; }
+.answer-line input { min-width: 0; height: 42px; padding: 0 10px; border: 0; border-bottom: 2px solid #5d655d; color: #4d5753; background: rgb(255 255 255 / 22%); font-size: .72rem; letter-spacing: .01em; }
 .answer-line button { padding: 0 14px; border: 0; border-radius: 3px; color: #f9eed6; background: #40564e; cursor: pointer; font-size: .72rem; font-weight: 750; }.answer-line button:disabled { opacity: .55; cursor: default; }
 .current-clue form > small { display: block; margin-top: 8px; color: #8b826f; font-size: .59rem; }
 .inventory { margin-top: auto; padding-top: 17px; }.inventory-heading { display: flex; justify-content: space-between; margin: 0 2px 9px; }.inventory-heading span { color: #ba9a60; font-size: .57rem; font-weight: 850; letter-spacing: .15em; }.inventory-heading small { color: #79867f; font-size: .6rem; }

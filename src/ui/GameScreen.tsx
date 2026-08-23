@@ -61,6 +61,7 @@ interface GameScreenProps {
 export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   const [state, setState] = useState<GameState>(() => initialState ?? createInitialGameState(map));
   const [selectedWordId, setSelectedWordId] = useState<string | null>(null);
+  const [activeCellIndex, setActiveCellIndex] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(state.status === "won");
   const [pendingLetterTarget, setPendingLetterTarget] = useState(false);
@@ -80,6 +81,9 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   const runId = useMemo(() => getRunId(map), [map]);
   const startedTelemetry = useRef(false);
   const lastActivityAt = useRef(Date.now());
+  const activeCellIndexRef = useRef(0);
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const soundLevel = soundsEnabled ? soundVolume : 0;
 
   const wordsAvailable = useMemo(() => availableWords(map, state), [map, state]);
@@ -88,6 +92,10 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
     [wordsAvailable],
   );
   const selectedWord = map.words.find((word) => word.id === selectedWordId) ?? null;
+  const selectedCells = selectedWord ? cellsForWord(selectedWord) : [];
+  const activeCellKey = selectedCells[activeCellIndex]
+    ? coordinateKey(selectedCells[activeCellIndex])
+    : null;
 
   useEffect(() => {
     if (!selectedWordId || !availableIds.has(selectedWordId)) {
@@ -95,6 +103,17 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
       setSelectedWordId(frontier?.id ?? wordsAvailable[0]?.id ?? null);
     }
   }, [availableIds, selectedWordId, state.solvedWordIds, wordsAvailable]);
+
+  useEffect(() => {
+    if (!selectedWord) return;
+    const cells = cellsForWord(selectedWord);
+    const firstWritable = cells.findIndex((cell) => !stateRef.current.ink[coordinateKey(cell)]);
+    const firstEmpty = cells.findIndex(
+      (cell) => !stateRef.current.ink[coordinateKey(cell)] && !stateRef.current.pencil[coordinateKey(cell)],
+    );
+    const index = firstEmpty >= 0 ? firstEmpty : Math.max(0, firstWritable);
+    setEntryCell(index);
+  }, [selectedWordId]);
 
   useEffect(() => {
     localStorage.setItem(saveKey(map), JSON.stringify(state));
@@ -136,26 +155,55 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
 
   useEffect(() => {
     const handleKeyboard = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      if (event.key === "ArrowDown" || event.key === "]") {
+      if (settingsOpen || summaryOpen || state.status === "won") return;
+      const typingTarget = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
+      if (event.key === "Tab") {
         event.preventDefault();
-        const index = wordsAvailable.findIndex((word) => word.id === selectedWordId);
-        const next = wordsAvailable[(index + 1 + wordsAvailable.length) % wordsAvailable.length];
-        if (next) setSelectedWordId(next.id);
+        cycleSelectedWord(event.shiftKey ? -1 : 1);
+        return;
       }
-      if (event.key === "ArrowUp" || event.key === "[") {
+      const movement = {
+        ArrowLeft: { x: -1, y: 0 },
+        ArrowRight: { x: 1, y: 0 },
+        ArrowUp: { x: 0, y: -1 },
+        ArrowDown: { x: 0, y: 1 },
+      }[event.key];
+      if (movement && !event.shiftKey) {
         event.preventDefault();
-        const index = wordsAvailable.findIndex((word) => word.id === selectedWordId);
-        const previous = wordsAvailable[(index - 1 + wordsAvailable.length) % wordsAvailable.length];
-        if (previous) setSelectedWordId(previous.id);
+        perform({
+          type: "move",
+          destination: {
+            x: stateRef.current.player.x + movement.x,
+            y: stateRef.current.player.y + movement.y,
+          },
+        });
+        return;
       }
       if (event.key === "Enter" && selectedWord && !state.solvedWordIds.includes(selectedWord.id)) {
-        document.querySelector<HTMLInputElement>("#answer-input")?.focus();
+        event.preventDefault();
+        perform({ type: "submit-word", wordId: selectedWord.id });
+        return;
+      }
+      if (event.key === "Backspace" || event.key === "Delete") {
+        event.preventDefault();
+        eraseLetter();
+        return;
+      }
+      if (
+        !typingTarget &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        event.key.length === 1 &&
+        normalizeGridAnswer(event.key).length === 1
+      ) {
+        event.preventDefault();
+        writeLetter(normalizeGridAnswer(event.key));
       }
     };
     window.addEventListener("keydown", handleKeyboard);
     return () => window.removeEventListener("keydown", handleKeyboard);
-  }, [selectedWord, selectedWordId, state.solvedWordIds, wordsAvailable]);
+  }, [selectedWord, selectedWordId, settingsOpen, state.solvedWordIds, state.status, summaryOpen, wordsAvailable]);
 
   function emitTelemetry(previous: GameState, next: GameState, action: GameAction) {
     if (next.solvedWordIds.length > previous.solvedWordIds.length) {
@@ -218,26 +266,90 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   }
 
   function perform(action: GameAction) {
-    const next = applyGameAction(map, state, action);
-    if (next === state) return;
-    emitTelemetry(state, next, action);
-    if (next.status === "won" && state.status !== "won") {
+    const previous = stateRef.current;
+    const next = applyGameAction(map, previous, action);
+    if (next === previous) return;
+    emitTelemetry(previous, next, action);
+    if (next.status === "won" && previous.status !== "won") {
       playSound("victory", soundLevel);
       setSummaryOpen(true);
-    } else if (next.keysCollected > state.keysCollected || next.collectedObjectIds.length > state.collectedObjectIds.length) {
+    } else if (next.keysCollected > previous.keysCollected || next.collectedObjectIds.length > previous.collectedObjectIds.length) {
       playSound("collect", soundLevel);
-    } else if (next.solvedWordIds.length > state.solvedWordIds.length) {
+    } else if (next.solvedWordIds.length > previous.solvedWordIds.length) {
       playSound("solve", soundLevel);
     } else if (next.lastFeedback?.kind === "blocked") {
       playSound("blocked", soundLevel);
     }
+    commitState(next);
+  }
+
+  function commitState(next: GameState) {
+    stateRef.current = next;
     setState(next);
   }
 
+  function setEntryCell(index: number) {
+    activeCellIndexRef.current = index;
+    setActiveCellIndex(index);
+  }
+
+  function cycleSelectedWord(direction: 1 | -1) {
+    const candidates = wordsAvailable.filter((word) => !stateRef.current.solvedWordIds.includes(word.id));
+    if (candidates.length === 0) return;
+    const currentIndex = candidates.findIndex((word) => word.id === selectedWordId);
+    const nextIndex = currentIndex < 0
+      ? direction === 1 ? 0 : candidates.length - 1
+      : (currentIndex + direction + candidates.length) % candidates.length;
+    const next = candidates[nextIndex];
+    if (next) setSelectedWordId(next.id);
+  }
+
+  function writeLetter(letter: string) {
+    if (!selectedWord || stateRef.current.solvedWordIds.includes(selectedWord.id)) return;
+    const cells = cellsForWord(selectedWord);
+    let index = activeCellIndexRef.current;
+    if (stateRef.current.ink[coordinateKey(cells[index] ?? cells[0]!)]) {
+      const nextWritable = cells.findIndex(
+        (cell, cellIndex) => cellIndex >= index && !stateRef.current.ink[coordinateKey(cell)],
+      );
+      if (nextWritable < 0) return;
+      index = nextWritable;
+    }
+    const cell = cells[index];
+    if (!cell) return;
+    perform({ type: "write-cell", position: cell, letter });
+    const nextWritable = cells.findIndex(
+      (candidate, cellIndex) => cellIndex > index && !stateRef.current.ink[coordinateKey(candidate)],
+    );
+    setEntryCell(nextWritable >= 0 ? nextWritable : index);
+  }
+
+  function eraseLetter() {
+    if (!selectedWord || stateRef.current.solvedWordIds.includes(selectedWord.id)) return;
+    const cells = cellsForWord(selectedWord);
+    let index = activeCellIndexRef.current;
+    const current = cells[index];
+    if (!current) return;
+    if (!stateRef.current.pencil[coordinateKey(current)]) {
+      for (let candidate = index - 1; candidate >= 0; candidate -= 1) {
+        const cell = cells[candidate];
+        if (cell && !stateRef.current.ink[coordinateKey(cell)]) {
+          index = candidate;
+          break;
+        }
+      }
+    }
+    const cell = cells[index];
+    if (!cell || stateRef.current.ink[coordinateKey(cell)]) return;
+    perform({ type: "write-cell", position: cell, letter: "" });
+    setEntryCell(index);
+  }
+
   function updateGuess(value: string) {
-    if (!selectedWord || state.solvedWordIds.includes(selectedWord.id)) return;
+    const previous = stateRef.current;
+    if (!selectedWord || previous.solvedWordIds.includes(selectedWord.id)) return;
     const normalized = normalizeGridAnswer(value).slice(0, selectedWord.gridAnswer.length);
-    let next = state;
+    let next = previous;
     for (const [index, cell] of cellsForWord(selectedWord).entries()) {
       next = applyGameAction(map, next, {
         type: "write-cell",
@@ -245,19 +357,13 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
         letter: normalized[index] ?? "",
       });
     }
-    if (next.solvedWordIds.length > state.solvedWordIds.length) {
-      emitTelemetry(state, next, { type: "submit-word", wordId: selectedWord.id });
+    if (next.solvedWordIds.length > previous.solvedWordIds.length) {
+      emitTelemetry(previous, next, { type: "submit-word", wordId: selectedWord.id });
       playSound("solve", soundLevel);
     } else {
       playSound("write", soundLevel);
     }
-    setState(next);
-  }
-
-  function guessFor(word: PlacedWord): string {
-    return cellsForWord(word)
-      .map((cell) => state.ink[coordinateKey(cell)] ?? state.pencil[coordinateKey(cell)] ?? "")
-      .join("");
+    commitState(next);
   }
 
   function handleCellClick(position: Coordinate, words: PlacedWord[]) {
@@ -276,16 +382,25 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
       }
       return;
     }
+    const candidates = words.filter(
+      (word) => availableIds.has(word.id) && !state.solvedWordIds.includes(word.id),
+    );
     const solvedHere = words.some((word) => state.solvedWordIds.includes(word.id));
     if (solvedHere) {
       perform({ type: "move", destination: position });
       return;
     }
-    const candidates = words.filter((word) => availableIds.has(word.id));
     if (candidates.length === 0) return;
     const currentIndex = candidates.findIndex((word) => word.id === selectedWordId);
     const next = candidates[(currentIndex + 1) % candidates.length] ?? candidates[0];
-    setSelectedWordId(next?.id ?? null);
+    if (next) {
+      setSelectedWordId(next.id);
+      const cellIndex = cellsForWord(next).findIndex(
+        (cell) => coordinateKey(cell) === coordinateKey(position),
+      );
+      if (cellIndex >= 0 && !state.ink[coordinateKey(position)]) setEntryCell(cellIndex);
+      return;
+    }
   }
 
   function usePowerup(powerupType: PowerupType) {
@@ -304,7 +419,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
     if (state.status === "won") return;
     if (!window.confirm("Apagar todos os traços e recomeçar a expedição de hoje?")) return;
     const fresh = createInitialGameState(map);
-    setState(fresh);
+    commitState(fresh);
     setSelectedWordId(null);
     setSettingsOpen(false);
     localStorage.setItem(saveKey(map), JSON.stringify(fresh));
@@ -358,6 +473,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
           map={map}
           state={state}
           selectedWordId={selectedWordId}
+          activeCellKey={activeCellKey}
           availableWordIds={availableIds}
           onCellClick={handleCellClick}
         />
@@ -398,13 +514,46 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
                   perform({ type: "submit-word", wordId: selectedWord.id });
                 }}
               >
-                <label htmlFor="answer-input">Seu palpite</label>
+                <label htmlFor="answer-input">
+                  {selectedWord.orientation === "horizontal" ? "Horizontal" : "Vertical"}
+                  {` · ${selectedWord.gridAnswer.length} letras`}
+                </label>
+                <div
+                  className="answer-pattern"
+                  role="group"
+                  aria-label={`Resposta com ${selectedWord.gridAnswer.length} letras`}
+                >
+                  {selectedCells.map((cell, index) => {
+                    const key = coordinateKey(cell);
+                    const value = state.ink[key] ?? state.pencil[key] ?? "";
+                    const inInk = Boolean(state.ink[key]);
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`answer-slot ${index === activeCellIndex ? "active" : ""} ${inInk ? "in-ink" : ""}`}
+                        onClick={() => {
+                          if (!inInk && !state.solvedWordIds.includes(selectedWord.id)) setEntryCell(index);
+                          document.querySelector<HTMLInputElement>("#answer-input")?.focus();
+                        }}
+                        aria-label={`Letra ${index + 1}${value ? `: ${value}` : ": vazia"}`}
+                      >
+                        {value}
+                      </button>
+                    );
+                  })}
+                </div>
                 <div className="answer-line">
                   <input
                     id="answer-input"
                     data-selected-word-id={selectedWord.id}
-                    value={guessFor(selectedWord)}
-                    onChange={(event) => updateGuess(event.target.value)}
+                    value=""
+                    placeholder="Comece a digitar…"
+                    onChange={(event) => {
+                      const value = normalizeGridAnswer(event.target.value);
+                      if (value.length > 1) updateGuess(value);
+                      else if (value) writeLetter(value);
+                    }}
                     maxLength={selectedWord.gridAnswer.length}
                     autoComplete="off"
                     spellCheck={false}
@@ -415,7 +564,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
                     {state.solvedWordIds.includes(selectedWord.id) ? "Em tinta" : "Conferir"}
                   </button>
                 </div>
-                <small id="answer-help">Enter confere a palavra inteira. Tentativas ficam a lápis.</small>
+                <small id="answer-help">Digite para preencher · Tab troca a palavra · Setas movem pelo caminho.</small>
               </form>
             ) : null}
           </section>
@@ -455,7 +604,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
       {tipVisible && state.status === "playing" ? (
         <aside className="field-tip">
           <span>✎</span>
-          <p><strong>Primeiro traço</strong>Escolha uma pista e escreva sem medo. A primeira palavra certa abre uma grande área ao redor do ponto de partida.</p>
+          <p><strong>Primeiro traço</strong>Comece a digitar. Tab troca de palavra e as setas movem o explorador pelos caminhos em tinta.</p>
           <button type="button" onClick={dismissTip} aria-label="Entendi">Entendi</button>
         </aside>
       ) : null}
