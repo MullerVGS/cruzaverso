@@ -4,6 +4,7 @@ import { SeededRandom, seedFingerprint } from "./random.js";
 import {
   cellsForWord,
   coordinateKey,
+  parseCoordinateKey,
   type Bounds,
   type Coordinate,
   type DailyMap,
@@ -24,6 +25,19 @@ interface CandidateSection {
   crossings: number;
   cycles: number;
   score: number;
+}
+
+interface RouteAnalysis {
+  plans: Array<{ keyIds: [string, string]; requiredWords: string[] }>;
+  diversity: number;
+  mandatoryWords: number;
+  score: number;
+}
+
+interface EvaluatedSection extends CandidateSection {
+  objects: MapObject[];
+  routes: RouteAnalysis;
+  finalScore: number;
 }
 
 const POWERUPS = Object.keys(POWERUP_DEFINITIONS) as PowerupType[];
@@ -63,14 +77,6 @@ function buildWordGraph(words: readonly PlacedWord[]): WordGraph {
     adjacency.get(right)?.add(left);
   }
   return { adjacency, crossings };
-}
-
-function parseCoordinate(key: string): Coordinate {
-  const [x, y] = key.split(",").map(Number);
-  if (x === undefined || y === undefined || Number.isNaN(x) || Number.isNaN(y)) {
-    throw new Error(`Coordenada inválida: ${key}`);
-  }
-  return { x, y };
 }
 
 function boundsForWords(words: readonly PlacedWord[], padding = 2): Bounds {
@@ -113,7 +119,7 @@ function growSection(
   const wordById = new Map(world.words.map((word) => [word.id, word]));
   const origins = graph.crossings.get(crossingKey) ?? [];
   const distance = graphDistance(graph.adjacency, origins);
-  const spawn = parseCoordinate(crossingKey);
+  const spawn = parseCoordinateKey(crossingKey);
   const ordered = [...distance.entries()]
     .map(([id, steps]) => ({
       word: wordById.get(id) as PlacedWord,
@@ -186,7 +192,7 @@ function pickSpreadCoordinates(
   while (selected.length < amount && available.length > 0) {
     const ranked = available
       .map((candidate) => {
-        const coordinate = parseCoordinate(candidate.key);
+        const coordinate = parseCoordinateKey(candidate.key);
         const separation =
           selected.length === 0
             ? 0
@@ -239,7 +245,7 @@ function placeObjects(section: CandidateSection, seed: string): MapObject[] {
     ),
   ];
 
-  const occupied = new Set(objects.map((object) => coordinateKey(object.position)));
+  const occupied = new Set<string>(objects.map((object) => coordinateKey(object.position)));
   const powerupCount = random.int(
     GAME_BALANCE.medium.powerups.minInclusive,
     GAME_BALANCE.medium.powerups.maxExclusive,
@@ -247,7 +253,7 @@ function placeObjects(section: CandidateSection, seed: string): MapObject[] {
   const powerupCandidates = random.shuffle(
     [...distances.entries()]
       .filter(([key, distance]) => key !== spawnKey && !occupied.has(key) && distance >= 2)
-      .map(([key]) => parseCoordinate(key)),
+      .map(([key]) => parseCoordinateKey(key)),
   );
   for (let index = 0; index < Math.min(powerupCount, powerupCandidates.length); index += 1) {
     const position = powerupCandidates[index];
@@ -260,6 +266,105 @@ function placeObjects(section: CandidateSection, seed: string): MapObject[] {
     });
   }
   return objects;
+}
+
+function wordIdsAt(words: readonly PlacedWord[], position: Coordinate): string[] {
+  const key = coordinateKey(position);
+  return words
+    .filter((word) => cellsForWord(word).some((cell) => coordinateKey(cell) === key))
+    .map((word) => word.id);
+}
+
+function shortestWordPath(
+  graph: ReadonlyMap<string, ReadonlySet<string>>,
+  origins: readonly string[],
+  targets: ReadonlySet<string>,
+): string[] | null {
+  const previous = new Map<string, string | null>();
+  const queue = [...origins];
+  for (const origin of origins) previous.set(origin, null);
+  let reached: string | undefined;
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index];
+    if (!current) continue;
+    if (targets.has(current)) {
+      reached = current;
+      break;
+    }
+    for (const neighbor of graph.get(current) ?? []) {
+      if (previous.has(neighbor)) continue;
+      previous.set(neighbor, current);
+      queue.push(neighbor);
+    }
+  }
+  if (!reached) return null;
+  const path: string[] = [];
+  let cursor: string | null = reached;
+  while (cursor) {
+    path.unshift(cursor);
+    cursor = previous.get(cursor) ?? null;
+  }
+  return path;
+}
+
+function analyzeObjectiveRoutes(
+  words: readonly PlacedWord[],
+  spawn: Coordinate,
+  objects: readonly MapObject[],
+): RouteAnalysis {
+  const graph = buildWordGraph(words).adjacency;
+  const origins = wordIdsAt(words, spawn);
+  const keys = objects.filter((object) => object.type === "key");
+  const exit = objects.find((object) => object.type === "exit");
+  const combinations: Array<[MapObject, MapObject]> =
+    keys.length === 3
+      ? [
+          [keys[0] as MapObject, keys[1] as MapObject],
+          [keys[0] as MapObject, keys[2] as MapObject],
+          [keys[1] as MapObject, keys[2] as MapObject],
+        ]
+      : [];
+  const plans: RouteAnalysis["plans"] = [];
+  if (origins.length === 0 || !exit) return { plans, diversity: 0, mandatoryWords: words.length, score: -10_000 };
+
+  for (const [firstKey, secondKey] of combinations) {
+    const targets = [firstKey, secondKey, exit];
+    const paths = targets.map((object) =>
+      shortestWordPath(graph, origins, new Set(wordIdsAt(words, object.position))),
+    );
+    if (paths.some((path) => !path)) continue;
+    const requiredWords = [
+      ...new Set(paths.flatMap((path) => path as string[])),
+    ].sort();
+    plans.push({
+      keyIds: [firstKey.id, secondKey.id],
+      requiredWords,
+    });
+  }
+
+  let diversity = 0;
+  let comparisons = 0;
+  for (let left = 0; left < plans.length; left += 1) {
+    for (let right = left + 1; right < plans.length; right += 1) {
+      const leftWords = new Set(plans[left]?.requiredWords ?? []);
+      const rightWords = new Set(plans[right]?.requiredWords ?? []);
+      diversity += [...leftWords].filter((id) => !rightWords.has(id)).length;
+      diversity += [...rightWords].filter((id) => !leftWords.has(id)).length;
+      comparisons += 1;
+    }
+  }
+  diversity = comparisons === 0 ? 0 : Number((diversity / comparisons).toFixed(2));
+
+  const mandatory = plans[0]
+    ? plans[0].requiredWords.filter((id) => plans.every((plan) => plan.requiredWords.includes(id)))
+    : [];
+  const smallestPlan = Math.min(...plans.map((plan) => plan.requiredWords.length), words.length);
+  const score =
+    plans.length * 80 +
+    diversity * 9 -
+    mandatory.length * 8 -
+    Math.abs(smallestPlan - 15) * 2;
+  return { plans, diversity, mandatoryWords: mandatory.length, score };
 }
 
 export function generateMediumMap(world: DailyWorld): DailyMap {
@@ -275,18 +380,30 @@ export function generateMediumMap(world: DailyWorld): DailyMap {
   const candidates = [...graph.crossings.keys()].map((crossingKey) =>
     growSection(world, graph, crossingKey, targetWords, random.fork(crossingKey)),
   );
-  candidates.sort(
+  const evaluated: EvaluatedSection[] = candidates.map((candidate) => {
+    const candidateSeed = `${world.seed}:${coordinateKey(candidate.spawn)}`;
+    const objects = placeObjects(candidate, candidateSeed);
+    const routes = analyzeObjectiveRoutes(candidate.words, candidate.spawn, objects);
+    return {
+      ...candidate,
+      objects,
+      routes,
+      finalScore: candidate.score + routes.score,
+    };
+  });
+  evaluated.sort(
     (left, right) =>
-      right.score - left.score ||
+      right.finalScore - left.finalScore ||
       coordinateKey(left.spawn).localeCompare(coordinateKey(right.spawn)),
   );
-  const section = candidates[0];
+  const section = evaluated[0];
   if (!section || section.words.length === 0) throw new Error("Mundo sem seção Medium viável");
 
   const map: DailyMap = {
     schemaVersion: 1,
     id: `${world.date}-medium-${seedFingerprint(`${world.seed}:medium`)}`,
     worldId: world.id,
+    configVersion: world.configVersion,
     date: world.date,
     seed: `${world.seed}:medium`,
     size: "medium",
@@ -294,7 +411,7 @@ export function generateMediumMap(world: DailyWorld): DailyMap {
     words: section.words,
     bounds: boundsForWords(section.words),
     spawn: section.spawn,
-    objects: placeObjects(section, world.seed),
+    objects: section.objects,
     objective: { keysRequired: 2, keysAvailable: 3 },
     report: {
       valid: false,
@@ -302,7 +419,18 @@ export function generateMediumMap(world: DailyWorld): DailyMap {
       crossings: section.crossings,
       cycles: section.cycles,
       biomes: new Set(section.words.map((word) => word.biome)).size,
-      score: section.score,
+      score: section.finalScore,
+      routeDiversity: section.routes.diversity,
+      mandatoryWords: section.routes.mandatoryWords,
+      routePlans: section.routes.plans,
+      candidateReports: evaluated.map((candidate) => ({
+        spawn: candidate.spawn,
+        words: candidate.words.length,
+        cycles: candidate.cycles,
+        routeDiversity: candidate.routes.diversity,
+        mandatoryWords: candidate.routes.mandatoryWords,
+        score: candidate.finalScore,
+      })),
       errors: [],
     },
   };
@@ -340,5 +468,10 @@ export function validateDailyMap(map: DailyMap): string[] {
   const biomeIds = new Set(BIOMES);
   if (map.words.some((word) => !biomeIds.has(word.biome))) errors.push("Bioma inválido no recorte");
   if (map.report.cycles < 1) errors.push("Recorte sem rota alternativa");
+  const routes = analyzeObjectiveRoutes(map.words, map.spawn, map.objects);
+  if (routes.plans.length !== 3) errors.push("Nem todas as combinações de duas chaves são alcançáveis");
+  if (routes.plans.every((plan) => plan.requiredWords.length >= map.words.length)) {
+    errors.push("Objetivo exige completar toda a crossword");
+  }
   return errors;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import type { DailyMap } from "../generation/types.js";
-import { loadDailyMap } from "./api.js";
+import { loadDailyMap, loadDebugMap } from "./api.js";
 import { GameScreen, loadSavedState } from "./GameScreen.js";
 import { playSound } from "./sfx.js";
 
@@ -12,17 +12,28 @@ function queryDate(): string | undefined {
   return new URLSearchParams(location.search).get("date") ?? undefined;
 }
 
+function querySeed(): string | undefined {
+  if (location.pathname !== "/debug") return undefined;
+  return new URLSearchParams(location.search).get("seed") ?? undefined;
+}
+
 export function App() {
   const [map, setMap] = useState<DailyMap | null>(null);
   const [stage, setStage] = useState<AppStage>("landing");
   const [error, setError] = useState<string | null>(null);
   const [debugDate, setDebugDate] = useState(queryDate() ?? "");
+  const [debugSeed, setDebugSeed] = useState(querySeed() ?? "");
   const debugAvailable = location.pathname === "/debug" && import.meta.env.DEV;
 
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    void loadDailyMap(queryDate())
+    const requestedSeed = querySeed();
+    const requestedDate = queryDate();
+    const loader = debugAvailable && (requestedSeed || requestedDate)
+      ? loadDebugMap({ seed: requestedSeed, date: requestedDate })
+      : loadDailyMap();
+    void loader
       .then((dailyMap) => {
         if (!cancelled) setMap(dailyMap);
       })
@@ -32,18 +43,23 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [debugAvailable]);
 
   function openGame() {
     if (!map) return;
-    playSound("open", localStorage.getItem("cruzaverso:sounds") !== "off");
+    const storedVolume = Number(localStorage.getItem("cruzaverso:volume"));
+    const volume = Number.isFinite(storedVolume) ? storedVolume : 0.65;
+    playSound("open", localStorage.getItem("cruzaverso:sounds") === "off" ? 0 : volume);
     setStage("game");
   }
 
   function openDebugSeed() {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(debugDate)) return;
+    if (!debugSeed.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(debugDate)) return;
     const url = new URL(location.href);
-    url.searchParams.set("date", debugDate);
+    url.searchParams.delete("date");
+    url.searchParams.delete("seed");
+    if (debugSeed.trim()) url.searchParams.set("seed", debugSeed.trim());
+    else url.searchParams.set("date", debugDate);
     location.assign(url);
   }
 
@@ -88,9 +104,11 @@ export function App() {
 
         {debugAvailable ? (
           <div className="debug-seed">
-            <label htmlFor="debug-date">Ferramenta local · data/seed</label>
+            <label htmlFor="debug-date">Ferramenta local · data ou seed arbitrária</label>
             <input id="debug-date" type="date" value={debugDate} onChange={(event) => setDebugDate(event.target.value)} />
+            <input aria-label="Seed arbitrária" placeholder="ex.: nebulosa-42" value={debugSeed} onChange={(event) => setDebugSeed(event.target.value)} />
             <button type="button" onClick={openDebugSeed}>Gerar</button>
+            {map ? <output>{map.report.words} palavras · {map.report.cycles} ciclos · diversidade {map.report.routeDiversity} · {map.report.candidateReports.length} candidatos</output> : null}
           </div>
         ) : null}
       </section>

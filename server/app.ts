@@ -4,6 +4,9 @@ import { DateTime } from "luxon";
 import { join } from "node:path";
 import { z } from "zod";
 
+import { loadBundledCatalog } from "../src/content/bundled.js";
+import { generateMediumMap } from "../src/generation/medium.js";
+import { generateDailyWorld } from "../src/generation/world.js";
 import { DailyStore } from "./daily-store.js";
 
 export const CANONICAL_TIME_ZONE = "America/Sao_Paulo";
@@ -80,9 +83,22 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
 
   app.get("/api/debug/world", async (request, reply) => {
     if (!debugEnabled) return reply.code(404).send({ error: "not_found" });
-    const query = z.object({ date: dateSchema }).safeParse(request.query);
+    const query = z
+      .object({
+        date: dateSchema.optional(),
+        seed: z.string().min(1).max(160).optional(),
+      })
+      .refine((value) => Boolean(value.date || value.seed))
+      .safeParse(request.query);
     if (!query.success) return reply.code(400).send({ error: "invalid_date" });
-    return store.getOrCreate(query.data.date);
+    if (!query.data.seed) return store.getOrCreate(query.data.date as string);
+    const date = query.data.date ?? canonicalDate();
+    const world = generateDailyWorld({
+      date,
+      seed: `cruzaverso:debug:${query.data.seed}`,
+      catalog: loadBundledCatalog(),
+    });
+    return { world, map: generateMediumMap(world) };
   });
 
   app.post("/api/telemetry", async (request, reply) => {
@@ -96,8 +112,13 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
   if (options.scheduler) {
     const generateCurrentAndNext = () => {
       const now = DateTime.now().setZone(CANONICAL_TIME_ZONE);
-      store.getOrCreate(now.toISODate() as string);
-      store.getOrCreate(now.plus({ days: 1 }).toISODate() as string);
+      for (const date of [now, now.plus({ days: 1 })]) {
+        try {
+          store.getOrCreate(date.toISODate() as string);
+        } catch (error) {
+          app.log.error({ error, date: date.toISODate() }, "Falha ao materializar edição; nova tentativa ocorrerá pelo scheduler");
+        }
+      }
     };
     generateCurrentAndNext();
     scheduler = setInterval(generateCurrentAndNext, 30 * 60 * 1_000);

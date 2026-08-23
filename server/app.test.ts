@@ -84,6 +84,9 @@ describe("HTTP público", () => {
     expect(visible.statusCode).toBe(200);
     expect(visible.json().world.report.valid).toBe(true);
     expect(visible.json().map.report.valid).toBe(true);
+    const arbitrary = await debugApp.inject({ method: "GET", url: "/api/debug/world?seed=nebulosa" });
+    expect(arbitrary.statusCode).toBe(200);
+    expect(arbitrary.json().world.seed).toContain("nebulosa");
     await debugApp.close();
   });
 });

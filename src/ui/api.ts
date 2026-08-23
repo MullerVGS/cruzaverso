@@ -8,6 +8,16 @@ export async function loadDailyMap(date?: string): Promise<DailyMap> {
   return body.map;
 }
 
+export async function loadDebugMap(input: { date?: string; seed?: string }): Promise<DailyMap> {
+  const query = new URLSearchParams();
+  if (input.date) query.set("date", input.date);
+  if (input.seed) query.set("seed", input.seed);
+  const response = await fetch(`/api/debug/world?${query}`);
+  if (!response.ok) throw new Error("A ferramenta de seed não está habilitada.");
+  const body = (await response.json()) as { map: DailyMap };
+  return body.map;
+}
+
 export type TelemetryEventName =
   | "run_started"
   | "word_solved"

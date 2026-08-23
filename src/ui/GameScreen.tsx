@@ -16,7 +16,7 @@ import {
   type PowerupType,
 } from "../generation/types.js";
 import { normalizeGridAnswer } from "../content/catalog.js";
-import { POWERUP_DEFINITIONS } from "../config/game.js";
+import { GAME_BALANCE, POWERUP_DEFINITIONS } from "../config/game.js";
 import { sendTelemetry } from "./api.js";
 import { MapView } from "./MapView.js";
 import { playSound } from "./sfx.js";
@@ -63,9 +63,14 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   const [selectedWordId, setSelectedWordId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(state.status === "won");
+  const [pendingLetterTarget, setPendingLetterTarget] = useState(false);
   const [soundsEnabled, setSoundsEnabled] = useState(
     () => localStorage.getItem("cruzaverso:sounds") !== "off",
   );
+  const [soundVolume, setSoundVolume] = useState(() => {
+    const stored = Number(localStorage.getItem("cruzaverso:volume"));
+    return Number.isFinite(stored) && stored >= 0 && stored <= 1 ? stored : 0.65;
+  });
   const [telemetryEnabled, setTelemetryEnabled] = useState(
     () => localStorage.getItem("cruzaverso:telemetry") !== "off",
   );
@@ -74,6 +79,8 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   );
   const runId = useMemo(() => getRunId(map), [map]);
   const startedTelemetry = useRef(false);
+  const lastActivityAt = useRef(Date.now());
+  const soundLevel = soundsEnabled ? soundVolume : 0;
 
   const wordsAvailable = useMemo(() => availableWords(map, state), [map, state]);
   const availableIds = useMemo(
@@ -106,13 +113,49 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   }, [map, runId, state.activeMs, telemetryEnabled]);
 
   useEffect(() => {
+    const markActive = () => {
+      lastActivityAt.current = Date.now();
+    };
+    window.addEventListener("pointerdown", markActive);
+    window.addEventListener("keydown", markActive);
     const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible" && document.hasFocus()) {
+      if (
+        document.visibilityState === "visible" &&
+        document.hasFocus() &&
+        Date.now() - lastActivityAt.current < GAME_BALANCE.activeTimeIdleAfterMs
+      ) {
         setState((current) => applyGameAction(map, current, { type: "add-active-time", milliseconds: 1_000 }));
       }
     }, 1_000);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("pointerdown", markActive);
+      window.removeEventListener("keydown", markActive);
+    };
   }, [map]);
+
+  useEffect(() => {
+    const handleKeyboard = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      if (event.key === "ArrowDown" || event.key === "]") {
+        event.preventDefault();
+        const index = wordsAvailable.findIndex((word) => word.id === selectedWordId);
+        const next = wordsAvailable[(index + 1 + wordsAvailable.length) % wordsAvailable.length];
+        if (next) setSelectedWordId(next.id);
+      }
+      if (event.key === "ArrowUp" || event.key === "[") {
+        event.preventDefault();
+        const index = wordsAvailable.findIndex((word) => word.id === selectedWordId);
+        const previous = wordsAvailable[(index - 1 + wordsAvailable.length) % wordsAvailable.length];
+        if (previous) setSelectedWordId(previous.id);
+      }
+      if (event.key === "Enter" && selectedWord && !state.solvedWordIds.includes(selectedWord.id)) {
+        document.querySelector<HTMLInputElement>("#answer-input")?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyboard);
+    return () => window.removeEventListener("keydown", handleKeyboard);
+  }, [selectedWord, selectedWordId, state.solvedWordIds, wordsAvailable]);
 
   function emitTelemetry(previous: GameState, next: GameState, action: GameAction) {
     if (next.solvedWordIds.length > previous.solvedWordIds.length) {
@@ -179,14 +222,14 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
     if (next === state) return;
     emitTelemetry(state, next, action);
     if (next.status === "won" && state.status !== "won") {
-      playSound("victory", soundsEnabled);
+      playSound("victory", soundLevel);
       setSummaryOpen(true);
     } else if (next.keysCollected > state.keysCollected || next.collectedObjectIds.length > state.collectedObjectIds.length) {
-      playSound("collect", soundsEnabled);
+      playSound("collect", soundLevel);
     } else if (next.solvedWordIds.length > state.solvedWordIds.length) {
-      playSound("solve", soundsEnabled);
+      playSound("solve", soundLevel);
     } else if (next.lastFeedback?.kind === "blocked") {
-      playSound("blocked", soundsEnabled);
+      playSound("blocked", soundLevel);
     }
     setState(next);
   }
@@ -202,8 +245,13 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
         letter: normalized[index] ?? "",
       });
     }
+    if (next.solvedWordIds.length > state.solvedWordIds.length) {
+      emitTelemetry(state, next, { type: "submit-word", wordId: selectedWord.id });
+      playSound("solve", soundLevel);
+    } else {
+      playSound("write", soundLevel);
+    }
     setState(next);
-    playSound("write", soundsEnabled);
   }
 
   function guessFor(word: PlacedWord): string {
@@ -213,6 +261,21 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   }
 
   function handleCellClick(position: Coordinate, words: PlacedWord[]) {
+    if (pendingLetterTarget && selectedWord) {
+      const belongsToSelected = cellsForWord(selectedWord).some(
+        (cell) => coordinateKey(cell) === coordinateKey(position),
+      );
+      if (belongsToSelected && !state.ink[coordinateKey(position)]) {
+        perform({
+          type: "use-powerup",
+          powerupType: "reveal-letter",
+          wordId: selectedWord.id,
+          position,
+        });
+        setPendingLetterTarget(false);
+      }
+      return;
+    }
     const solvedHere = words.some((word) => state.solvedWordIds.includes(word.id));
     if (solvedHere) {
       perform({ type: "move", destination: position });
@@ -226,6 +289,10 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   }
 
   function usePowerup(powerupType: PowerupType) {
+    if (powerupType === "reveal-letter") {
+      if (selectedWord) setPendingLetterTarget(true);
+      return;
+    }
     perform({
       type: "use-powerup",
       powerupType,
@@ -235,6 +302,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
 
   function resetDraft() {
     if (state.status === "won") return;
+    if (!window.confirm("Apagar todos os traços e recomeçar a expedição de hoje?")) return;
     const fresh = createInitialGameState(map);
     setState(fresh);
     setSelectedWordId(null);
@@ -362,6 +430,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
                   disabled={state.inventory[type] === 0 || (type !== "reveal-area" && type !== "objective-direction" && !selectedWord)}
                   onClick={() => usePowerup(type)}
                   title={`${meta.name}: ${meta.description}`}
+                  aria-pressed={type === "reveal-letter" ? pendingLetterTarget : undefined}
                 >
                   <i>{meta.icon}</i><b>{state.inventory[type]}</b><span>{meta.name}</span>
                 </button>
@@ -374,6 +443,12 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
       {state.lastFeedback ? (
         <div className={`feedback-toast ${state.lastFeedback.kind}`} role="status">
           {state.lastFeedback.message}
+        </div>
+      ) : null}
+      {pendingLetterTarget ? (
+        <div className="target-hint" role="status">
+          <b>A·</b> Escolha no mapa uma célula da palavra aberta.
+          <button type="button" onClick={() => setPendingLetterTarget(false)}>Cancelar</button>
         </div>
       ) : null}
 
@@ -392,7 +467,12 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
             const enabled = event.target.checked;
             setSoundsEnabled(enabled);
             localStorage.setItem("cruzaverso:sounds", enabled ? "on" : "off");
-            if (enabled) playSound("open", true);
+            if (enabled) playSound("open", soundVolume);
+          }} /></label>
+          <label className="volume-control"><span>Volume</span><input type="range" min="0" max="1" step="0.05" value={soundVolume} onChange={(event) => {
+            const volume = Number(event.target.value);
+            setSoundVolume(volume);
+            localStorage.setItem("cruzaverso:volume", String(volume));
           }} /></label>
           <label title="Sem conta, fingerprint ou conteúdo dos palpites"><span>Métricas anônimas</span><input type="checkbox" checked={telemetryEnabled} onChange={(event) => setTelemetry(event.target.checked)} /></label>
           <button type="button" className="text-button" disabled={state.status === "won"} onClick={resetDraft}>Apagar rascunho desta run</button>
@@ -411,6 +491,9 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
               <span><b>{state.solvedWordIds.length}</b> palavras em tinta</span>
               <span><b>{state.keysCollected}</b> chaves encontradas</span>
               <span><b>{formatActiveTime(state.activeMs)}</b> tempo ativo</span>
+              <span><b>{state.captures}</b> áreas capturadas</span>
+              <span><b>{state.powerupsUsed}</b> powerups usados</span>
+              <span><b>{Math.max(0, state.path.length - 1)}</b> células no trajeto</span>
             </div>
             <button type="button" onClick={() => setSummaryOpen(false)}>Revelar atlas completo</button>
             <small>Uma nova expedição nasce amanhã, no horário de São Paulo.</small>

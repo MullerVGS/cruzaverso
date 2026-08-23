@@ -5,6 +5,8 @@ export interface Coordinate {
   y: number;
 }
 
+export type CoordinateKey = `${number},${number}`;
+
 export type Orientation = "horizontal" | "vertical";
 
 export interface BiomeSite extends Coordinate {
@@ -57,6 +59,7 @@ export interface DailyWorld {
   schemaVersion: 1;
   generatorVersion: string;
   datasetVersion: string;
+  configVersion: string;
   id: string;
   date: string;
   seed: string;
@@ -65,6 +68,7 @@ export interface DailyWorld {
   words: PlacedWord[];
   bounds: Bounds;
   report: GenerationReport;
+  candidateReports: GenerationReport[];
 }
 
 export type PowerupType =
@@ -93,6 +97,20 @@ export interface DailyMapReport {
   cycles: number;
   biomes: number;
   score: number;
+  routeDiversity: number;
+  mandatoryWords: number;
+  routePlans: Array<{
+    keyIds: [string, string];
+    requiredWords: string[];
+  }>;
+  candidateReports: Array<{
+    spawn: Coordinate;
+    words: number;
+    cycles: number;
+    routeDiversity: number;
+    mandatoryWords: number;
+    score: number;
+  }>;
   errors: string[];
 }
 
@@ -100,6 +118,7 @@ export interface DailyMap {
   schemaVersion: 1;
   id: string;
   worldId: string;
+  configVersion: string;
   date: string;
   seed: string;
   size: "medium";
@@ -124,6 +143,14 @@ export function cellsForWord(word: Pick<PlacedWord, "gridAnswer" | "orientation"
   }));
 }
 
-export function coordinateKey(coordinate: Coordinate): string {
+export function coordinateKey(coordinate: Coordinate): CoordinateKey {
   return `${coordinate.x},${coordinate.y}`;
+}
+
+export function parseCoordinateKey(key: string): Coordinate {
+  const [x, y] = key.split(",").map(Number);
+  if (x === undefined || y === undefined || Number.isNaN(x) || Number.isNaN(y)) {
+    throw new Error(`Coordenada inválida: ${key}`);
+  }
+  return { x, y };
 }

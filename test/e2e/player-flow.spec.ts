@@ -38,7 +38,6 @@ test("uma expedição pode sair da primeira pista e chegar à vitória", async (
     await page.locator(`[data-word-id="${word!.id}"]`).click();
     const input = page.locator("#answer-input");
     await input.fill(word!.gridAnswer);
-    await page.getByRole("button", { name: "Conferir" }).click();
     await expect(page.getByText("O caminho ganhou tinta.")).toBeVisible();
     solved.add(word!.id);
   }

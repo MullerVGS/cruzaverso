@@ -20,6 +20,7 @@ export interface WorldGenerationConfig {
 
 export interface GenerateWorldInput {
   date: string;
+  seed?: string;
   catalog: ContentCatalog;
   config?: Partial<WorldGenerationConfig>;
 }
@@ -309,8 +310,9 @@ function buildAttempt(
   const cycles = Math.max(0, crossings - words.length + 1);
   const world: DailyWorld = {
     schemaVersion: 1,
-    generatorVersion: "1.0.0",
+    generatorVersion: "1.1.0",
     datasetVersion: "curadoria-v1",
+    configVersion: "1.0.0",
     id: `${date}-g1-${seedFingerprint(seed)}`,
     date,
     seed,
@@ -328,6 +330,7 @@ function buildAttempt(
       score: words.length * 10 + cycles * 25 + crossings,
       errors: [],
     },
+    candidateReports: [],
   };
   const errors = validateWorld(world);
   world.report.errors = errors;
@@ -338,13 +341,14 @@ function buildAttempt(
 
 export function generateDailyWorld(input: GenerateWorldInput): DailyWorld {
   const config = { ...DEFAULT_CONFIG, ...input.config };
-  const seed = `cruzaverso:${input.date}`;
+  const seed = input.seed ?? `cruzaverso:${input.date}`;
   const candidates = Array.from({ length: config.attempts }, (_, attempt) =>
     buildAttempt(input.date, seed, attempt, input.catalog, config),
   );
   candidates.sort((left, right) => right.report.score - left.report.score || left.report.attempt - right.report.attempt);
   const best = candidates[0];
   if (!best) throw new Error("Nenhum mundo candidato foi gerado");
+  best.candidateReports = candidates.map((candidate) => ({ ...candidate.report }));
   return best;
 }
 

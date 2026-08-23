@@ -20,6 +20,7 @@ export const GAME_BALANCE = {
     revealAreaPowerupRadius: 8,
   },
   objectiveDirectionSolvedWords: 3,
+  activeTimeIdleAfterMs: 45_000,
 } as const;
 
 export const BIOME_DEFINITIONS: Record<

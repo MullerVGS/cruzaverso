@@ -3,6 +3,7 @@ import { GAME_BALANCE } from "../config/game.js";
 import {
   cellsForWord,
   coordinateKey,
+  parseCoordinateKey,
   type Coordinate,
   type DailyMap,
   type MapObject,
@@ -37,8 +38,11 @@ export interface GameState {
   simplifiedWordIds: string[];
   directionUsesRemaining: number;
   firstSolveRevealGranted: boolean;
+  captures: number;
+  powerupsUsed: number;
+  path: Coordinate[];
   activeMs: number;
-  finishedAt: string | null;
+  finishedAtActiveMs: number | null;
   lastFeedback: GameFeedback | null;
 }
 
@@ -80,8 +84,11 @@ export function createInitialGameState(map: DailyMap): GameState {
     simplifiedWordIds: [],
     directionUsesRemaining: 0,
     firstSolveRevealGranted: false,
+    captures: 0,
+    powerupsUsed: 0,
+    path: [{ ...map.spawn }],
     activeMs: 0,
-    finishedAt: null,
+    finishedAtActiveMs: null,
     lastFeedback: null,
   };
 }
@@ -144,7 +151,7 @@ function findPath(
   const destinationKey = coordinateKey(destination);
   if (!graph.has(originKey) || !graph.has(destinationKey)) return null;
   const previous = new Map<string, string | null>([[originKey, null]]);
-  const queue = [originKey];
+  const queue: string[] = [originKey];
   for (let index = 0; index < queue.length; index += 1) {
     const current = queue[index];
     if (!current) continue;
@@ -230,7 +237,11 @@ function captureEnclosedCells(map: DailyMap, state: GameState): GameState {
   }
   if (captured.size === state.capturedCellKeys.length) return state;
 
-  let next: GameState = { ...state, capturedCellKeys: [...captured] };
+  let next: GameState = {
+    ...state,
+    capturedCellKeys: [...captured],
+    captures: state.captures + 1,
+  };
   for (const object of map.objects) {
     if (object.type !== "exit" && captured.has(coordinateKey(object.position))) {
       next = withCollectedObject(next, object);
@@ -296,7 +307,7 @@ function finishIfExit(map: DailyMap, state: GameState, positionKey: string): Gam
     ...state,
     player: { ...exit.position },
     status: "won",
-    finishedAt: "completed",
+    finishedAtActiveMs: state.activeMs,
     lastFeedback: { kind: "correct", message: "O Cruzaverso de hoje foi desbravado.", subjectId: exit.id },
   };
 }
@@ -312,8 +323,8 @@ function move(map: DailyMap, state: GameState, destination: Coordinate): GameSta
 
   let next = state;
   for (const key of path.slice(1)) {
-    const [x, y] = key.split(",").map(Number);
-    next = { ...next, player: { x: x as number, y: y as number } };
+    const player = parseCoordinateKey(key);
+    next = { ...next, player, path: [...next.path, player] };
     for (const object of map.objects) {
       if (coordinateKey(object.position) === key) next = withCollectedObject(next, object);
     }
@@ -329,14 +340,31 @@ function usePowerup(
   action: Extract<GameAction, { type: "use-powerup" }>,
 ): GameState {
   if (state.inventory[action.powerupType] <= 0) return state;
+  const selectedWord = action.wordId
+    ? map.words.find((candidate) => candidate.id === action.wordId)
+    : undefined;
+  if (
+    (action.powerupType === "reveal-letter" || action.powerupType === "simplify-clue") &&
+    (!selectedWord || !availableWords(map, state).some((word) => word.id === selectedWord.id))
+  ) {
+    return state;
+  }
+  if (
+    action.powerupType === "simplify-clue" &&
+    selectedWord &&
+    state.simplifiedWordIds.includes(selectedWord.id)
+  ) {
+    return state;
+  }
   const inventory = {
     ...state.inventory,
     [action.powerupType]: state.inventory[action.powerupType] - 1,
   };
+  const consumed = { inventory, powerupsUsed: state.powerupsUsed + 1 };
   if (action.powerupType === "reveal-area") {
     return {
       ...state,
-      inventory,
+      ...consumed,
       revealZones: [
         ...state.revealZones,
         { ...state.player, radius: GAME_BALANCE.fog.revealAreaPowerupRadius, source: "powerup" },
@@ -346,35 +374,53 @@ function usePowerup(
   if (action.powerupType === "objective-direction") {
     return {
       ...state,
-      inventory,
+      ...consumed,
       directionUsesRemaining: GAME_BALANCE.objectiveDirectionSolvedWords,
     };
   }
-  if (action.powerupType === "simplify-clue" && action.wordId) {
+  if (action.powerupType === "simplify-clue" && selectedWord) {
     return {
       ...state,
-      inventory,
-      simplifiedWordIds: state.simplifiedWordIds.includes(action.wordId)
-        ? state.simplifiedWordIds
-        : [...state.simplifiedWordIds, action.wordId],
+      ...consumed,
+      simplifiedWordIds: [...state.simplifiedWordIds, selectedWord.id],
     };
   }
-  if (action.powerupType === "reveal-letter" && action.wordId) {
-    const word = map.words.find((candidate) => candidate.id === action.wordId);
-    if (!word) return state;
-    const candidates = cellsForWord(word).filter((cell) => !state.ink[coordinateKey(cell)]);
+  if (action.powerupType === "reveal-letter" && selectedWord && action.position) {
+    const candidates = cellsForWord(selectedWord).filter((cell) => !state.ink[coordinateKey(cell)]);
     const requestedPosition = action.position;
-    const chosen = requestedPosition
-      ? candidates.find((cell) => coordinateKey(cell) === coordinateKey(requestedPosition))
-      : candidates[0];
+    const chosen = candidates.find(
+      (cell) => coordinateKey(cell) === coordinateKey(requestedPosition),
+    );
     if (!chosen) return state;
-    return {
+    const next = {
       ...state,
-      inventory,
-      pencil: { ...state.pencil, [coordinateKey(chosen)]: chosen.letter },
+      ...consumed,
+      ink: { ...state.ink, [coordinateKey(chosen)]: chosen.letter },
     };
+    return automaticallyCheckFilledWords(map, next, chosen);
   }
   return state;
+}
+
+function automaticallyCheckFilledWords(
+  map: DailyMap,
+  state: GameState,
+  position: Coordinate,
+): GameState {
+  let next = state;
+  const candidates = map.words.filter(
+    (word) =>
+      !next.solvedWordIds.includes(word.id) &&
+      wordTouchesPosition(word, position) &&
+      availableWords(map, next).some((available) => available.id === word.id),
+  );
+  for (const word of candidates) {
+    const isFilled = cellsForWord(word).every(
+      (cell) => Boolean(next.ink[coordinateKey(cell)] ?? next.pencil[coordinateKey(cell)]),
+    );
+    if (isFilled) next = submitWord(map, next, word.id);
+  }
+  return next;
 }
 
 export function applyGameAction(map: DailyMap, state: GameState, action: GameAction): GameState {
@@ -393,7 +439,11 @@ export function applyGameAction(map: DailyMap, state: GameState, action: GameAct
   const pencil = { ...state.pencil };
   if (letter) pencil[key] = letter;
   else delete pencil[key];
-  return { ...state, pencil, lastFeedback: null };
+  return automaticallyCheckFilledWords(
+    map,
+    { ...state, pencil, lastFeedback: null },
+    action.position,
+  );
 }
 
 export function objectiveDirection(map: DailyMap, state: GameState): Coordinate | null {

@@ -11,8 +11,8 @@ const NOTES: Record<SoundName, readonly [number, number, number]> = {
 
 let context: AudioContext | undefined;
 
-export function playSound(name: SoundName, enabled = true): void {
-  if (!enabled || typeof AudioContext === "undefined") return;
+export function playSound(name: SoundName, volume = 1): void {
+  if (volume <= 0 || typeof AudioContext === "undefined") return;
   context ??= new AudioContext();
   const [from, to, duration] = NOTES[name];
   const oscillator = context.createOscillator();
@@ -22,7 +22,7 @@ export function playSound(name: SoundName, enabled = true): void {
   oscillator.frequency.setValueAtTime(from, now);
   oscillator.frequency.exponentialRampToValueAtTime(to, now + duration);
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.035, now + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.035 * Math.min(1, volume), now + 0.012);
   gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
   oscillator.connect(gain).connect(context.destination);
   oscillator.start(now);

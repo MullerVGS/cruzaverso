@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { loadBundledCatalog } from "../src/content/bundled.js";
+import { GAME_BALANCE } from "../src/config/game.js";
 import { generateMediumMap } from "../src/generation/medium.js";
 import type { DailyMap, DailyWorld } from "../src/generation/types.js";
 import { generateDailyWorld } from "../src/generation/world.js";
@@ -42,6 +43,8 @@ export class DailyStore {
         map_id TEXT NOT NULL UNIQUE,
         generator_version TEXT NOT NULL,
         dataset_version TEXT NOT NULL,
+        config_version TEXT NOT NULL,
+        resolved_config_json TEXT NOT NULL,
         world_json TEXT NOT NULL,
         map_json TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -83,8 +86,9 @@ export class DailyStore {
     this.database
       .prepare(
         `INSERT OR IGNORE INTO daily_artifacts
-          (date, world_id, map_id, generator_version, dataset_version, world_json, map_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          (date, world_id, map_id, generator_version, dataset_version, config_version,
+           resolved_config_json, world_json, map_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         date,
@@ -92,6 +96,8 @@ export class DailyStore {
         map.id,
         world.generatorVersion,
         world.datasetVersion,
+        world.configVersion,
+        JSON.stringify(GAME_BALANCE),
         JSON.stringify(world),
         JSON.stringify(map),
       );

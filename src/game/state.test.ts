@@ -32,6 +32,21 @@ function fillAndSubmit(map: ReturnType<typeof fixture>, state: GameState, wordId
 }
 
 describe("estado de uma run", () => {
+  it("confere automaticamente quando a palavra inteira fica preenchida", () => {
+    const map = fixture();
+    const word = availableWords(map, createInitialGameState(map))[0]!;
+    let state = createInitialGameState(map);
+    for (const cell of cellsForWord(word)) {
+      state = applyGameAction(map, state, {
+        type: "write-cell",
+        position: cell,
+        letter: cell.letter,
+      });
+    }
+    expect(state.solvedWordIds).toContain(word.id);
+    expect(state.lastFeedback?.kind).toBe("correct");
+  });
+
   it("mantém uma tentativa errada a lápis e trava a resposta certa em tinta", () => {
     const map = fixture();
     const first = availableWords(map, createInitialGameState(map))[0];
@@ -81,7 +96,7 @@ describe("estado de uma run", () => {
 
     state = applyGameAction(map, state, { type: "move", destination: exit!.position });
     expect(state.status).toBe("won");
-    expect(state.finishedAt).toBeTruthy();
+    expect(state.finishedAtActiveMs).not.toBeNull();
   });
 
   it("aplica os quatro powerups por dados sem criar progressão permanente", () => {
@@ -101,8 +116,9 @@ describe("estado de uma run", () => {
       type: "use-powerup",
       powerupType: "reveal-letter",
       wordId: word.id,
+      position: cellsForWord(word)[0],
     });
-    expect(Object.keys(state.pencil)).toHaveLength(1);
+    expect(Object.keys(state.ink)).toHaveLength(1);
     state = applyGameAction(map, state, {
       type: "use-powerup",
       powerupType: "simplify-clue",

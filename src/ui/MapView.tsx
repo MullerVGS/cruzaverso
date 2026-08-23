@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent } from "react";
 
 import {
   isCoordinateRevealed,
@@ -26,15 +26,17 @@ interface MapViewProps {
 function KeyIcon({ x, y }: Coordinate) {
   return (
     <g className="map-object key-object" transform={`translate(${x * CELL} ${y * CELL})`}>
+      <title>Chave</title>
       <circle cx="12" cy="12" r="5" />
       <path d="M16 15l9 9m-3-3 3-3m-6 0 3-3" />
     </g>
   );
 }
 
-function ExitIcon({ x, y }: Coordinate) {
+function ExitIcon({ x, y, unlocked }: Coordinate & { unlocked: boolean }) {
   return (
-    <g className="map-object exit-object" transform={`translate(${x * CELL} ${y * CELL})`}>
+    <g className={`map-object exit-object ${unlocked ? "is-unlocked" : "is-locked"}`} transform={`translate(${x * CELL} ${y * CELL})`}>
+      <title>{unlocked ? "Saída aberta" : "Saída — encontre duas chaves"}</title>
       <path d="M8 28V6q8-4 17 0v22M5 28h23" />
       <circle cx="21" cy="17" r="1.7" />
     </g>
@@ -44,6 +46,7 @@ function ExitIcon({ x, y }: Coordinate) {
 function PowerupIcon({ x, y }: Coordinate) {
   return (
     <g className="map-object powerup-object" transform={`translate(${x * CELL} ${y * CELL})`}>
+      <title>Achado para a mochila</title>
       <path d="M17 3l4 9 9 4-9 4-4 10-4-10-9-4 9-4z" />
       <circle cx="17" cy="16" r="3" />
     </g>
@@ -98,7 +101,6 @@ export function MapView({ map, state, selectedWordId, availableWordIds, onCellCl
       cameraY: camera.y,
       moved: false,
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function handlePointerMove(event: ReactPointerEvent<SVGSVGElement>) {
@@ -107,6 +109,7 @@ export function MapView({ map, state, selectedWordId, availableWordIds, onCellCl
     const deltaX = event.clientX - origin.clientX;
     const deltaY = event.clientY - origin.clientY;
     if (Math.abs(deltaX) + Math.abs(deltaY) < 4 && !origin.moved) return;
+    if (!origin.moved) event.currentTarget.setPointerCapture(event.pointerId);
     origin.moved = true;
     suppressClick.current = true;
     const scaleX = cameraWidth / event.currentTarget.clientWidth;
@@ -132,6 +135,33 @@ export function MapView({ map, state, selectedWordId, availableWordIds, onCellCl
     event.preventDefault();
     zoomBy(event.deltaY < 0 ? 0.25 : -0.25);
   }
+
+  useEffect(() => {
+    const handleKeyboard = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      const key = event.key.toLowerCase();
+      if (["+", "=", "-", "0", "c", "w", "a", "s", "d"].includes(key)) {
+        event.preventDefault();
+      }
+      if (key === "+" || key === "=") zoomBy(.3);
+      if (key === "-") zoomBy(-.3);
+      if (key === "0") setCamera({ ...mapCenter, zoom: 1 });
+      if (key === "c") {
+        setCamera({
+          x: state.player.x * CELL + CELL / 2,
+          y: state.player.y * CELL + CELL / 2,
+          zoom: Math.max(2, camera.zoom),
+        });
+      }
+      const pan = Math.min(cameraWidth, cameraHeight) * .1;
+      if (key === "w") setCamera((current) => ({ ...current, y: current.y - pan }));
+      if (key === "s") setCamera((current) => ({ ...current, y: current.y + pan }));
+      if (key === "a") setCamera((current) => ({ ...current, x: current.x - pan }));
+      if (key === "d") setCamera((current) => ({ ...current, x: current.x + pan }));
+    };
+    window.addEventListener("keydown", handleKeyboard);
+    return () => window.removeEventListener("keydown", handleKeyboard);
+  }, [camera.zoom, cameraHeight, cameraWidth, mapCenter.x, mapCenter.y, state.player.x, state.player.y]);
 
   return (
     <div className="atlas-frame">
@@ -216,6 +246,12 @@ export function MapView({ map, state, selectedWordId, availableWordIds, onCellCl
                 onClick={() => {
                   if (!suppressClick.current) onCellClick(cell.position, cell.words);
                 }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onCellClick(cell.position, cell.words);
+                  }
+                }}
                 data-cell-key={key}
                 role="button"
                 tabIndex={0}
@@ -239,7 +275,9 @@ export function MapView({ map, state, selectedWordId, availableWordIds, onCellCl
               isCoordinateRevealed(state, object.position);
             if (!visible || collected.has(object.id)) return null;
             if (object.type === "key") return <KeyIcon key={object.id} {...object.position} />;
-            if (object.type === "exit") return <ExitIcon key={object.id} {...object.position} />;
+            if (object.type === "exit") {
+              return <ExitIcon key={object.id} {...object.position} unlocked={state.keysCollected >= map.objective.keysRequired} />;
+            }
             return <PowerupIcon key={object.id} {...object.position} />;
           })}
         </g>
