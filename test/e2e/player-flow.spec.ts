@@ -123,7 +123,12 @@ test("comprar um item cobra só quando ele aplica, e cancelar devolve tudo", asy
   expect(await wallet(page)).toBe(saldoInicial);
 
   // Aplicar: agora sim o crédito sai, e a letra fica com cor própria.
-  const alvo = cellsForWord(primeira!)[0]!;
+  // O alvo é de propósito a casa onde o explorador está: o marcador dele já
+  // engoliu o clique da própria casa, e o jogador clicava no alvo destacado sem
+  // nada acontecer.
+  const alvo = cellsForWord(primeira!).find(
+    (cell) => coordinateKey(cell) === coordinateKey(map.spawn),
+  )!;
   await letra.click();
   await page.locator(`[data-cell-key="${coordinateKey(alvo)}"]`).click();
   await expect(aviso).toHaveCount(0);
