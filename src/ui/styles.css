@@ -321,11 +321,10 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .map-powerup-tooltip > span { display: flex; flex-direction: column; gap: 2px; }.map-powerup-tooltip strong { color: #f4d99f; font-size: .73rem; }
 .direction-arrow path { fill: #b75445; animation: point 1s ease-in-out infinite alternate; }
 @keyframes point { to { transform: translateX(5px); } }
-.map-legend { position: absolute; left: 36px; bottom: 30px; display: flex; gap: 14px; padding: 8px 12px; border: 1px solid rgb(87 72 49 / 22%); border-radius: 4px; color: #4f554f; background: rgb(245 233 204 / 86%); box-shadow: 0 3px 12px rgb(0 0 0 / 18%); font-size: .62rem; font-weight: 700; }
 .map-controls { position:absolute; top:34px; right:34px; display:grid; gap:5px; padding:6px; border:1px solid rgb(85 72 49 / 22%); border-radius:5px; background:rgb(244 231 198 / 88%); box-shadow:0 5px 16px rgb(0 0 0 / 18%); }
 .map-controls button { width:30px; height:30px; display:grid; place-items:center; padding:0; border:0; border-bottom:1px solid rgb(74 72 58 / 13%); color:#46534d; background:transparent; cursor:pointer; font-family:"EB Garamond", Georgia, serif; font-size:1rem; }.map-controls button:hover { color:#f8ead0; border-radius:3px; background:#5b6d64; }
-.map-legend span { display: flex; align-items: center; gap: 5px; white-space: nowrap; }.dot { width: 8px; height: 8px; border-radius: 50%; }.dot.cotidiano { background:#758c68 }.dot.ciencia { background:#5583a2 }.dot.historia { background:#b1814e }.dot.cultura { background:#a8616c }
-.fog-legend { padding-right: 10px; border-right: 1px solid rgb(74 72 58 / 18%); }.fog-swatch { width: 13px; height: 9px; border: 1px solid rgb(53 62 57 / 30%); border-radius: 7px; background: rgb(55 68 63 / 24%); box-shadow: 3px -2px 0 rgb(55 68 63 / 10%); }
+.dot { width: 8px; height: 8px; border-radius: 50%; }.dot.cotidiano { background:#758c68 }.dot.ciencia { background:#5583a2 }.dot.historia { background:#b1814e }.dot.cultura { background:#a8616c }
+
 
 /* Clue desk */
 .clue-desk { min-height: 0; display: flex; flex-direction: column; padding: 20px 18px 16px; border-left: 1px solid rgb(239 226 190 / 13%); background: #202a27; box-shadow: -8px 0 28px rgb(0 0 0 / 16%); }
@@ -369,21 +368,34 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 
 @media (max-width: 1050px) {
   .game-header { grid-template-columns: auto 1fr auto; }.objective-strip { min-width:0; }.objective-strip strong { max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .game-layout { grid-template-columns:minmax(0,1fr) 330px; }.clue-desk { padding-inline:13px; }.map-legend { max-width:calc(100% - 72px); flex-wrap:wrap; }
-}
+  .game-layout { grid-template-columns:minmax(0,1fr) 330px; }.clue-desk { padding-inline:13px; }}
 
 @media (max-width: 820px) {
   .landing-card { padding:42px 23px 34px; }.expedition-ticket { gap:8px; padding-inline:9px; }.expedition-ticket > span:not(.ticket-divider) { min-width:0; flex:1; }
   .game-header { grid-template-columns:1fr auto; min-height:64px; }.objective-strip { grid-row:2; grid-column:1/-1; width:100%; }.active-time { display:none; }
-  .game-layout { display:flex; flex-direction:column; }.atlas-frame { min-height:55vh; padding:10px; }.atlas { height:55vh; }.clue-desk { min-height:420px; border-top:1px solid rgb(239 226 190 / 13%); border-left:0; }.current-clue { min-height:215px; }.field-tip { left:16px; bottom:16px; width:calc(100vw - 32px); }.map-legend { left:22px; bottom:18px; }
-}
+  .game-layout { display:flex; flex-direction:column; }.atlas-frame { min-height:55vh; padding:10px; }.atlas { height:55vh; }.clue-desk { min-height:420px; border-top:1px solid rgb(239 226 190 / 13%); border-left:0; }.current-clue { min-height:215px; }.field-tip { left:16px; bottom:16px; width:calc(100vw - 32px); }}
 
 @media (max-width: 540px) {
   .landing-shell { padding-inline:14px; }.landing-shell::before { inset:10px; }.landing-card h1 { font-size:3.45rem; }.expedition-ticket > span:nth-of-type(3), .expedition-ticket > .ticket-divider:last-of-type { display:none; }.landing-footer { left:20px; right:20px; }
   .game-header { padding:9px 12px; gap:8px; }.wordmark strong { font-size:1rem; }.wordmark small { display:none; }.objective-strip { padding:6px 9px; }.objective-strip strong { font-size:.67rem; }.header-actions { gap:5px; }
-  .map-legend { display:none; }.clue-tabs { max-height:90px; }.current-clue { padding-inline:15px; }.summary-card { padding:38px 20px 30px; }.summary-stats { grid-template-columns:1fr; }.summary-stats span { padding:7px; }.summary-stats b { display:inline; margin-right:5px; }
+  .clue-tabs { max-height:90px; }.current-clue { padding-inline:15px; }.summary-card { padding:38px 20px 30px; }.summary-stats { grid-template-columns:1fr; }.summary-stats span { padding:7px; }.summary-stats b { display:inline; margin-right:5px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
 }
+
+/* Moldura desenhada atrás de painel HTML */
+.sketch-frame { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.sketch-frame path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; opacity: .42; }
+.has-sketch-frame { position: relative; border-color: transparent !important; }
+/* .field-tip é fixed com left/bottom: conceder `relative` a derrubaria no fluxo. */
+.field-tip.has-sketch-frame { position: fixed; }
+
+/* Cartucho da carta */
+.map-cartouche { position: absolute; left: 34px; bottom: 28px; min-width: 176px; padding: 13px 17px 11px; color: #4b4634; background: rgb(244 232 203 / 88%); box-shadow: 0 4px 16px rgb(0 0 0 / 22%); }
+.map-cartouche strong { display: block; margin-bottom: 8px; color: #4a3f27; font-family: "EB Garamond", Georgia, serif; font-size: .78rem; font-style: italic; font-weight: 600; letter-spacing: .04em; }
+.map-cartouche ul { display: flex; flex-wrap: wrap; gap: 4px 13px; margin: 0 0 8px; padding: 0; list-style: none; }
+.map-cartouche li { display: flex; align-items: center; gap: 6px; font-size: .63rem; font-weight: 700; white-space: nowrap; }
+.map-cartouche li i { width: 8px; height: 8px; border: 1px solid rgb(74 63 39 / 45%); border-radius: 50%; }
+.map-cartouche small { display: block; color: #7b7159; font-family: "EB Garamond", Georgia, serif; font-size: .63rem; font-style: italic; }

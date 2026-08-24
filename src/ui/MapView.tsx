@@ -19,6 +19,7 @@ import { sketchBlob, sketchRect } from "../render/sketch.js";
 import { BiomeAtlas } from "./BiomeAtlas.js";
 import { FogChart } from "./FogChart.js";
 import { POWERUP_ART } from "./powerup-icons.js";
+import { SketchFrame } from "./SketchFrame.js";
 
 const CELL = 34;
 /** Células amostradas além do recorte: é o que faz a fronteira continuar do lado de fora. */
@@ -230,6 +231,13 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
     width: width + BLEED * 2 * CELL,
     height: height + BLEED * 2 * CELL,
   };
+  // A legenda anunciava os quatro biomas sempre; o recorte do dia costuma ter
+  // menos. Prometer bioma que não está no mapa é ruído, não informação.
+  const presentBiomes = useMemo(() => {
+    const present = new Set(map.words.map((word) => word.biome));
+    return (Object.keys(BIOME_DEFINITIONS) as Array<keyof typeof BIOME_DEFINITIONS>)
+      .filter((biome) => present.has(biome));
+  }, [map.words]);
   const direction = objectiveDirection(map, state);
   const cameraWidth = width / camera.zoom;
   const cameraHeight = height / camera.zoom;
@@ -596,12 +604,20 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
         <button type="button" onClick={() => setCamera({ ...mapCenter, zoom: 1 })} aria-label="Ver mapa inteiro">⌗</button>
         <button type="button" onClick={() => setCamera({ x: state.player.x * CELL + CELL / 2, y: state.player.y * CELL + CELL / 2, zoom: Math.max(2, camera.zoom) })} aria-label="Centralizar no explorador">⌖</button>
       </div>
-      <div className="map-legend" aria-label="Legenda dos biomas">
-        <span className="fog-legend"><i className="fog-swatch" />Névoa oculta achados</span>
-        <span><i className="dot cotidiano" />Cotidiano</span>
-        <span><i className="dot ciencia" />Ciência</span>
-        <span><i className="dot historia" />História</span>
-        <span><i className="dot cultura" />Cultura Pop</span>
+      {/* Cartucho: em carta antiga é a caixa ornamentada que nomeia a folha.
+          É o lugar natural da legenda depois que tudo virou desenho. */}
+      <div className="map-cartouche has-sketch-frame" aria-label="Legenda do mapa">
+        <SketchFrame seed={`cartucho:${map.id}`} roughness={2} />
+        <strong>Carta de {map.date.split("-").reverse().join(" · ")}</strong>
+        <ul>
+          {presentBiomes.map((biome) => (
+            <li key={biome}>
+              <i style={{ background: BIOME_DEFINITIONS[biome].color }} />
+              {BIOME_DEFINITIONS[biome].label}
+            </li>
+          ))}
+        </ul>
+        <small>Além da névoa, o mapa segue por desbravar.</small>
       </div>
       {powerupTooltip ? (
         <div

@@ -4,6 +4,7 @@ import type { DailyMap } from "../generation/types.js";
 import { loadDailyMap, loadDebugMap } from "./api.js";
 import { GameScreen, loadSavedState } from "./GameScreen.js";
 import { playSound } from "./sfx.js";
+import { SketchFrame } from "./SketchFrame.js";
 
 type AppStage = "landing" | "game";
 
@@ -78,7 +79,8 @@ export function App() {
         <span className="landing-pin pin-one">✦</span>
         <span className="landing-pin pin-two">⌘</span>
       </div>
-      <section className="landing-card" aria-labelledby="game-title">
+      <section className="landing-card has-sketch-frame" aria-labelledby="game-title">
+        <SketchFrame seed="cartao-inicial" roughness={2.2} />
         <div className="logo-compass">✣</div>
         <p className="eyebrow">UM MUNDO NOVO, TODO DIA</p>
         <h1 id="game-title">Cruzaverso</h1>
