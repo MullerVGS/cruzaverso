@@ -18,6 +18,7 @@ import { BIOME_DEFINITIONS, POWERUP_DEFINITIONS } from "../config/game.js";
 import { sketchBlob, sketchRect } from "../render/sketch.js";
 import { BiomeAtlas } from "./BiomeAtlas.js";
 import { FogChart } from "./FogChart.js";
+import { PowerupGlyph } from "./PowerupGlyph.js";
 import { POWERUP_ART } from "./powerup-icons.js";
 import { SketchFrame } from "./SketchFrame.js";
 
@@ -628,7 +629,7 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
           role="tooltip"
           style={{ left: powerupTooltip.clientX, top: powerupTooltip.clientY }}
         >
-          <i>{POWERUP_DEFINITIONS[powerupTooltip.powerupType].icon}</i>
+          <PowerupGlyph powerupType={powerupTooltip.powerupType} size={26} />
           <span>
             <strong>{POWERUP_DEFINITIONS[powerupTooltip.powerupType].name}</strong>
             {POWERUP_DEFINITIONS[powerupTooltip.powerupType].description}
