@@ -305,7 +305,7 @@ function buildAttempt(
     generatorVersion: GENERATOR_VERSION,
     datasetVersion: catalog.datasetVersion,
     configVersion: "1.0.0",
-    id: `${date}-g2-${seedFingerprint(seed)}`,
+    id: `${date}-g2-${seedFingerprint(`${seed}:${catalog.datasetVersion}`)}`,
     date,
     seed,
     biomeSites,
