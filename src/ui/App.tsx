@@ -97,7 +97,8 @@ export function App() {
         {error ? (
           <div className="landing-error"><strong>O mapa ficou preso na névoa.</strong><span>{error}</span><button type="button" onClick={() => location.reload()}>Tentar novamente</button></div>
         ) : (
-          <button className="start-button" type="button" disabled={!map} onClick={openGame}>
+          <button className="start-button has-sketch-frame" type="button" disabled={!map} onClick={openGame}>
+            <SketchFrame seed="botao-desbravar" roughness={1.4} />
             <span>{!map ? "Desenhando o atlas…" : saved?.status === "won" ? "Rever expedição de hoje" : saved ? "Continuar expedição" : "Desbravar o mapa"}</span>
             <i>→</i>
           </button>

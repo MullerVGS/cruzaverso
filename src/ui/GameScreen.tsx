@@ -19,6 +19,7 @@ import { normalizeGridAnswer } from "../content/catalog.js";
 import { GAME_BALANCE, POWERUP_DEFINITIONS } from "../config/game.js";
 import { sendTelemetry } from "./api.js";
 import { MapView } from "./MapView.js";
+import { PowerupGlyph } from "./PowerupGlyph.js";
 import { SketchFrame } from "./SketchFrame.js";
 import { playSound } from "./sfx.js";
 
@@ -583,8 +584,11 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
                   onClick={() => usePowerup(type)}
                   title={`${meta.name}: ${meta.description}`}
                   aria-pressed={type === "reveal-letter" ? pendingLetterTarget : undefined}
+                  className="has-sketch-frame"
                 >
-                  <i>{meta.icon}</i><b>{state.inventory[type]}</b><span>{meta.name}</span>
+                  <SketchFrame seed={`mochila:${type}`} roughness={1.2} />
+                  <PowerupGlyph powerupType={type} size={24} />
+                  <b>{state.inventory[type]}</b><span>{meta.name}</span>
                 </button>
               ))}
             </div>

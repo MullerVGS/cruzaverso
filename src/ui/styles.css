@@ -352,7 +352,7 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .inventory { margin-top: auto; padding-top: 17px; }.inventory-heading { display: flex; justify-content: space-between; margin: 0 2px 9px; }.inventory-heading span { color: #ba9a60; font-size: .57rem; font-weight: 850; letter-spacing: .15em; }.inventory-heading small { color: #79867f; font-size: .6rem; }
 .powerup-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
 .powerup-grid button { position: relative; min-width: 0; height: 66px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px; border: 1px solid rgb(235 215 167 / 15%); border-radius: 5px; color: #d9cda9; background: rgb(255 255 255 / 4%); cursor: pointer; }
-.powerup-grid button:hover:not(:disabled) { border-color: #bf9a55; background: rgb(191 154 85 / 12%); }.powerup-grid button:disabled { opacity: .32; cursor: default; }.powerup-grid button i { color: #e5bb68; font-family: "EB Garamond", Georgia, serif; font-size: 1.15rem; font-style: normal; }.powerup-grid button b { position: absolute; top: 4px; right: 6px; color: #eee2c5; font-size: .58rem; }.powerup-grid button span { max-width: 70px; overflow: hidden; color: #96a29c; font-size: .49rem; text-overflow: ellipsis; white-space: nowrap; }
+.powerup-grid button:hover:not(:disabled) { border-color: #bf9a55; background: rgb(191 154 85 / 12%); }.powerup-grid button:disabled { opacity: .32; cursor: default; }.powerup-grid button b { position: absolute; top: 4px; right: 6px; color: #eee2c5; font-size: .58rem; }.powerup-grid button span { max-width: 70px; overflow: hidden; color: #96a29c; font-size: .49rem; text-overflow: ellipsis; white-space: nowrap; }
 
 .feedback-toast { position: fixed; z-index: 20; left: 50%; bottom: 28px; translate: -50% 0; padding: 10px 17px; border: 1px solid rgb(255 255 255 / 15%); border-radius: 4px; color: #fff3d8; background: #3d5149; box-shadow: 0 8px 30px rgb(0 0 0 / 30%); font-size: .78rem; animation: toast-in .2s ease-out; }
 .target-hint { position:fixed; z-index:22; left:50%; bottom:30px; translate:-50% 0; display:flex; align-items:center; gap:10px; padding:10px 12px; color:#33413c; border:1px solid rgb(80 68 46 / 25%); border-radius:4px; background:#f0e1bc; box-shadow:0 8px 28px rgb(0 0 0 / 28%); font-size:.72rem; }.target-hint b { color:#9a6c30; font-family:"EB Garamond", Georgia, serif; font-size:1.05rem; }.target-hint button { padding:5px 8px; border:0; color:#f5ead2; background:#56675f; cursor:pointer; font-size:.6rem; }
@@ -399,3 +399,7 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .map-cartouche li { display: flex; align-items: center; gap: 6px; font-size: .63rem; font-weight: 700; white-space: nowrap; }
 .map-cartouche li i { width: 8px; height: 8px; border: 1px solid rgb(74 63 39 / 45%); border-radius: 50%; }
 .map-cartouche small { display: block; color: #7b7159; font-family: "EB Garamond", Georgia, serif; font-size: .63rem; font-style: italic; }
+.powerup-glyph { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.powerup-grid button .powerup-glyph { color: #e5bb68; }
+.powerup-grid button:disabled .powerup-glyph { color: #8d8778; }
+.map-powerup-tooltip .powerup-glyph { flex: none; color: #e1b45f; }
