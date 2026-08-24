@@ -26,6 +26,9 @@ export interface GenerateWorldInput {
   config?: Partial<WorldGenerationConfig>;
 }
 
+/** Versão do algoritmo de geração. Bump obriga a regerar artefatos persistidos. */
+export const GENERATOR_VERSION = "2.0.0";
+
 const DEFAULT_CONFIG: WorldGenerationConfig = {
   ...GAME_BALANCE.world,
 };
@@ -299,7 +302,7 @@ function buildAttempt(
   const cycles = Math.max(0, crossings - words.length + 1);
   const world: DailyWorld = {
     schemaVersion: 2,
-    generatorVersion: "2.0.0",
+    generatorVersion: GENERATOR_VERSION,
     datasetVersion: "curadoria-v1",
     configVersion: "1.0.0",
     id: `${date}-g2-${seedFingerprint(seed)}`,
