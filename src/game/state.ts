@@ -6,14 +6,16 @@ import {
   parseCoordinateKey,
   type Coordinate,
   type DailyMap,
+  type ItemType,
+  type MapMode,
   type MapObject,
   type PlacedWord,
-  type PowerupType,
 } from "../generation/types.js";
+import { creditsForCapture, creditsForWord, priceOf } from "./economy.js";
 
 export interface RevealZone extends Coordinate {
   radius: number;
-  source: "initial" | "word" | "tutorial" | "powerup";
+  source: "initial" | "word" | "tutorial" | "item";
 }
 
 export interface GameFeedback {
@@ -23,23 +25,27 @@ export interface GameFeedback {
 }
 
 export interface GameState {
-  schemaVersion: 1;
+  schemaVersion: 2;
   mapId: string;
+  mode: MapMode;
   status: "playing" | "won";
   player: Coordinate;
   pencil: Record<string, string>;
   ink: Record<string, string>;
+  hintedCellKeys: string[];
   solvedWordIds: string[];
   revealZones: RevealZone[];
   capturedCellKeys: string[];
   collectedObjectIds: string[];
   keysCollected: number;
-  inventory: Record<PowerupType, number>;
+  credits: number;
+  creditsEarned: number;
+  creditsSpent: number;
   simplifiedWordIds: string[];
   directionUsesRemaining: number;
   firstSolveRevealGranted: boolean;
   captures: number;
-  powerupsUsed: number;
+  itemsUsed: number;
   path: Coordinate[];
   activeMs: number;
   finishedAtActiveMs: number | null;
@@ -50,42 +56,32 @@ export type GameAction =
   | { type: "write-cell"; position: Coordinate; letter: string }
   | { type: "submit-word"; wordId: string }
   | { type: "move"; destination: Coordinate }
-  | {
-      type: "use-powerup";
-      powerupType: PowerupType;
-      wordId?: string;
-      position?: Coordinate;
-    }
+  | { type: "use-item"; item: ItemType; wordId?: string; position?: Coordinate }
   | { type: "add-active-time"; milliseconds: number };
-
-function emptyInventory(): Record<PowerupType, number> {
-  return {
-    "reveal-letter": 0,
-    "simplify-clue": 0,
-    "reveal-area": 0,
-    "objective-direction": 0,
-  };
-}
 
 export function createInitialGameState(map: DailyMap): GameState {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     mapId: map.id,
+    mode: map.mode,
     status: "playing",
     player: { ...map.spawn },
     pencil: {},
     ink: {},
+    hintedCellKeys: [],
     solvedWordIds: [],
     revealZones: [{ ...map.spawn, radius: GAME_BALANCE.fog.initialRadius, source: "initial" }],
     capturedCellKeys: [],
     collectedObjectIds: [],
     keysCollected: 0,
-    inventory: emptyInventory(),
+    credits: GAME_BALANCE.economy.initialCredits,
+    creditsEarned: GAME_BALANCE.economy.initialCredits,
+    creditsSpent: 0,
     simplifiedWordIds: [],
     directionUsesRemaining: 0,
     firstSolveRevealGranted: false,
     captures: 0,
-    powerupsUsed: 0,
+    itemsUsed: 0,
     path: [{ ...map.spawn }],
     activeMs: 0,
     finishedAtActiveMs: null,
@@ -183,15 +179,13 @@ function withCollectedObject(state: GameState, object: MapObject): GameState {
       lastFeedback: { kind: "collected", message: "Uma chave foi encontrada.", subjectId: object.id },
     };
   }
-  if (object.type !== "powerup") return state;
+  if (object.type !== "coin") return state;
   return {
     ...state,
     collectedObjectIds,
-    inventory: {
-      ...state.inventory,
-      [object.powerupType]: state.inventory[object.powerupType] + 1,
-    },
-    lastFeedback: { kind: "collected", message: "Achado guardado na mochila.", subjectId: object.id },
+    credits: state.credits + object.value,
+    creditsEarned: state.creditsEarned + object.value,
+    lastFeedback: { kind: "collected", message: "Uma moeda foi recolhida.", subjectId: object.id },
   };
 }
 
@@ -237,10 +231,14 @@ function captureEnclosedCells(map: DailyMap, state: GameState): GameState {
   }
   if (captured.size === state.capturedCellKeys.length) return state;
 
+  const gained = captured.size - state.capturedCellKeys.length;
+  const bonus = creditsForCapture(gained);
   let next: GameState = {
     ...state,
     capturedCellKeys: [...captured],
     captures: state.captures + 1,
+    credits: state.credits + bonus,
+    creditsEarned: state.creditsEarned + bonus,
   };
   for (const object of map.objects) {
     if (object.type !== "exit" && captured.has(coordinateKey(object.position))) {
@@ -290,6 +288,8 @@ function submitWord(map: DailyMap, state: GameState, wordId: string): GameState 
     ink,
     solvedWordIds: [...state.solvedWordIds, word.id],
     revealZones,
+    credits: state.credits + creditsForWord(word),
+    creditsEarned: state.creditsEarned + creditsForWord(word),
     firstSolveRevealGranted: state.firstSolveRevealGranted || firstSolve,
     directionUsesRemaining: Math.max(0, state.directionUsesRemaining - 1),
     lastFeedback: { kind: "correct", message: "O caminho ganhou tinta.", subjectId: word.id },
@@ -302,6 +302,7 @@ function finishIfExit(map: DailyMap, state: GameState, positionKey: string): Gam
   const exit = map.objects.find(
     (object) => object.type === "exit" && coordinateKey(object.position) === positionKey,
   );
+  if (map.objective.kind !== "keys-and-exit") return state;
   if (!exit || state.keysCollected < map.objective.keysRequired) return state;
   return {
     ...state,
@@ -334,72 +335,80 @@ function move(map: DailyMap, state: GameState, destination: Coordinate): GameSta
   return next;
 }
 
-function usePowerup(
+function wordsCoveringPosition(
   map: DailyMap,
   state: GameState,
-  action: Extract<GameAction, { type: "use-powerup" }>,
+  position: Coordinate,
+): PlacedWord[] {
+  const available = new Set(availableWords(map, state).map((word) => word.id));
+  const key = coordinateKey(position);
+  return map.words.filter(
+    (word) =>
+      available.has(word.id) &&
+      !state.solvedWordIds.includes(word.id) &&
+      cellsForWord(word).some((cell) => coordinateKey(cell) === key),
+  );
+}
+
+function useItem(
+  map: DailyMap,
+  state: GameState,
+  action: Extract<GameAction, { type: "use-item" }>,
 ): GameState {
-  if (state.inventory[action.powerupType] <= 0) return state;
-  const selectedWord = action.wordId
-    ? map.words.find((candidate) => candidate.id === action.wordId)
-    : undefined;
-  if (
-    (action.powerupType === "reveal-letter" || action.powerupType === "simplify-clue") &&
-    (!selectedWord || !availableWords(map, state).some((word) => word.id === selectedWord.id))
-  ) {
-    return state;
-  }
-  if (
-    action.powerupType === "simplify-clue" &&
-    selectedWord &&
-    state.simplifiedWordIds.includes(selectedWord.id)
-  ) {
-    return state;
-  }
-  const inventory = {
-    ...state.inventory,
-    [action.powerupType]: state.inventory[action.powerupType] - 1,
+  const price = priceOf(action.item);
+  if (state.credits < price) return state;
+  const paid = {
+    credits: state.credits - price,
+    creditsSpent: state.creditsSpent + price,
+    itemsUsed: state.itemsUsed + 1,
   };
-  const consumed = { inventory, powerupsUsed: state.powerupsUsed + 1 };
-  if (action.powerupType === "reveal-area") {
+
+  if (action.item === "reveal-area") {
+    if (!action.position) return state;
     return {
       ...state,
-      ...consumed,
+      ...paid,
       revealZones: [
         ...state.revealZones,
-        { ...state.player, radius: GAME_BALANCE.fog.revealAreaPowerupRadius, source: "powerup" },
+        { ...action.position, radius: GAME_BALANCE.fog.revealAreaRadius, source: "item" },
       ],
     };
   }
-  if (action.powerupType === "objective-direction") {
+
+  if (action.item === "objective-direction") {
     return {
       ...state,
-      ...consumed,
+      ...paid,
       directionUsesRemaining: GAME_BALANCE.objectiveDirectionSolvedWords,
     };
   }
-  if (action.powerupType === "simplify-clue" && selectedWord) {
-    return {
-      ...state,
-      ...consumed,
-      simplifiedWordIds: [...state.simplifiedWordIds, selectedWord.id],
-    };
+
+  if (action.item === "simplify-clue") {
+    const word = map.words.find((candidate) => candidate.id === action.wordId);
+    if (!word) return state;
+    if (state.simplifiedWordIds.includes(word.id)) return state;
+    if (!availableWords(map, state).some((candidate) => candidate.id === word.id)) return state;
+    if (state.solvedWordIds.includes(word.id)) return state;
+    return { ...state, ...paid, simplifiedWordIds: [...state.simplifiedWordIds, word.id] };
   }
-  if (action.powerupType === "reveal-letter" && selectedWord && action.position) {
-    const candidates = cellsForWord(selectedWord).filter((cell) => !state.ink[coordinateKey(cell)]);
-    const requestedPosition = action.position;
-    const chosen = candidates.find(
-      (cell) => coordinateKey(cell) === coordinateKey(requestedPosition),
-    );
-    if (!chosen) return state;
-    const next = {
-      ...state,
-      ...consumed,
-      ink: { ...state.ink, [coordinateKey(chosen)]: chosen.letter },
-    };
-    return automaticallyCheckFilledWords(map, next, chosen);
-  }
-  return state;
+
+  if (!action.position) return state;
+  const key = coordinateKey(action.position);
+  if (state.ink[key]) return state;
+  const word = wordsCoveringPosition(map, state, action.position)[0];
+  if (!word) return state;
+  const cell = cellsForWord(word).find((candidate) => coordinateKey(candidate) === key);
+  if (!cell) return state;
+  const pencil = { ...state.pencil };
+  delete pencil[key];
+  const next: GameState = {
+    ...state,
+    ...paid,
+    pencil,
+    ink: { ...state.ink, [key]: cell.letter },
+    hintedCellKeys: [...state.hintedCellKeys, key],
+  };
+  return automaticallyCheckFilledWords(map, next, cell);
 }
 
 function automaticallyCheckFilledWords(
@@ -431,7 +440,7 @@ export function applyGameAction(map: DailyMap, state: GameState, action: GameAct
   if (state.status === "won") return state;
   if (action.type === "submit-word") return submitWord(map, state, action.wordId);
   if (action.type === "move") return move(map, state, action.destination);
-  if (action.type === "use-powerup") return usePowerup(map, state, action);
+  if (action.type === "use-item") return useItem(map, state, action);
 
   const key = coordinateKey(action.position);
   if (state.ink[key]) return state;
@@ -449,11 +458,15 @@ export function applyGameAction(map: DailyMap, state: GameState, action: GameAct
 export function objectiveDirection(map: DailyMap, state: GameState): Coordinate | null {
   if (state.directionUsesRemaining <= 0) return null;
   const targets =
-    state.keysCollected >= map.objective.keysRequired
-      ? map.objects.filter((object) => object.type === "exit")
-      : map.objects.filter(
-          (object) => object.type === "key" && !state.collectedObjectIds.includes(object.id),
-        );
+    map.objective.kind === "sandbox"
+      ? map.objects.filter(
+          (object) => object.type === "coin" && !state.collectedObjectIds.includes(object.id),
+        )
+      : state.keysCollected >= map.objective.keysRequired
+        ? map.objects.filter((object) => object.type === "exit")
+        : map.objects.filter(
+            (object) => object.type === "key" && !state.collectedObjectIds.includes(object.id),
+          );
   const nearest = [...targets].sort((left, right) => {
     const leftDistance =
       Math.abs(left.position.x - state.player.x) + Math.abs(left.position.y - state.player.y);
