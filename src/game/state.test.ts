@@ -156,10 +156,36 @@ describe("estado de uma run", () => {
     expect(map.words.find((candidate) => candidate.id === word.id)?.clues.normal).toBeTruthy();
   });
 
+  it("a luneta recusa alvo que não descobre nada e não cobra", () => {
+    const map = fixture();
+    const before = { ...createInitialGameState(map), credits: 100 };
+    const longe = { x: map.bounds.minX - 40, y: map.bounds.minY - 40 };
+    const after = applyGameAction(map, before, {
+      type: "use-item",
+      item: "reveal-area",
+      position: longe,
+    });
+    expect(after.credits).toBe(100);
+    expect(after.creditsSpent).toBe(0);
+    expect(after.itemsUsed).toBe(0);
+    expect(after.lastFeedback?.kind).toBe("unavailable");
+  });
+
   it("a luneta abre a área no ponto escolhido, não no explorador", () => {
     const map = fixture();
-    const target = { x: map.spawn.x + 14, y: map.spawn.y + 14 };
+    // Uma casa real bem longe do explorador: é o ponto que a mira serve para
+    // alcançar, e ele continua na névoa até a luneta ser usada.
+    const target = map.words
+      .flatMap((word) => cellsForWord(word))
+      .map((cell) => ({ x: cell.x, y: cell.y }))
+      .sort(
+        (left, right) =>
+          Math.abs(right.x - map.spawn.x) +
+          Math.abs(right.y - map.spawn.y) -
+          (Math.abs(left.x - map.spawn.x) + Math.abs(left.y - map.spawn.y)),
+      )[0]!;
     const before = { ...createInitialGameState(map), credits: 100 };
+    expect(isCoordinateRevealed(before, target)).toBe(false);
     const after = applyGameAction(map, before, {
       type: "use-item",
       item: "reveal-area",

@@ -292,10 +292,11 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
     }
   }
 
-  function perform(action: GameAction) {
+  /** Devolve se o item foi de fato cobrado, para a mira só desarmar quando aplica. */
+  function perform(action: GameAction): boolean {
     const previous = stateRef.current;
     const next = applyGameAction(map, previous, action);
-    if (next === previous) return;
+    if (next === previous) return false;
     emitTelemetry(previous, next, action);
     if (next.status === "won" && previous.status !== "won") {
       playSound("victory", soundLevel);
@@ -304,10 +305,11 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
       playSound("collect", soundLevel);
     } else if (next.solvedWordIds.length > previous.solvedWordIds.length) {
       playSound("solve", soundLevel);
-    } else if (next.lastFeedback?.kind === "blocked") {
+    } else if (next.lastFeedback?.kind === "blocked" || next.lastFeedback?.kind === "unavailable") {
       playSound("blocked", soundLevel);
     }
     commitState(next);
+    return next.itemsUsed > previous.itemsUsed;
   }
 
   function commitState(next: GameState) {
@@ -393,8 +395,9 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   function applyArmedAt(position: Coordinate, words: PlacedWord[]): boolean {
     if (!armed) return false;
     if (targeting === "map") {
-      perform({ type: "use-item", item: armed, position });
-      disarm();
+      // Mirar fora do mapa não descobre nada: o reducer recusa, e a mira fica de
+      // pé para o jogador escolher outro ponto em vez de perder o crédito.
+      if (perform({ type: "use-item", item: armed, position })) disarm();
       return true;
     }
     if (targeting === "cell") {
@@ -403,8 +406,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
         (word) => availableIds.has(word.id) && !state.solvedWordIds.includes(word.id),
       );
       if (!target) return true;
-      perform({ type: "use-item", item: armed, position });
-      disarm();
+      if (perform({ type: "use-item", item: armed, position })) disarm();
       return true;
     }
     if (targeting === "word") {
@@ -415,8 +417,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
           !state.simplifiedWordIds.includes(word.id),
       );
       if (!target) return true;
-      perform({ type: "use-item", item: armed, wordId: target.id });
-      disarm();
+      if (perform({ type: "use-item", item: armed, wordId: target.id })) disarm();
       return true;
     }
     return false;

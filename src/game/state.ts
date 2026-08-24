@@ -365,13 +365,25 @@ function useItem(
 
   if (action.item === "reveal-area") {
     if (!action.position) return state;
+    const target = action.position;
+    const radius = GAME_BALANCE.fog.revealAreaRadius;
+    // O atlas é desenhado além dos limites do mapa, então mirar no vazio é fácil.
+    // Um item que não descobre nada não é vendido.
+    const uncovers = map.words.some((word) =>
+      cellsForWord(word).some(
+        (cell) => Math.abs(cell.x - target.x) + Math.abs(cell.y - target.y) <= radius,
+      ),
+    );
+    if (!uncovers) {
+      return {
+        ...state,
+        lastFeedback: { kind: "unavailable", message: "Não há nada para revelar aí." },
+      };
+    }
     return {
       ...state,
       ...paid,
-      revealZones: [
-        ...state.revealZones,
-        { ...action.position, radius: GAME_BALANCE.fog.revealAreaRadius, source: "item" },
-      ],
+      revealZones: [...state.revealZones, { ...target, radius, source: "item" }],
     };
   }
 

@@ -68,6 +68,19 @@ test("uma expedição pode sair da primeira pista e chegar à vitória", async (
   const totalLetras = map.words.reduce((sum, word) => sum + word.gridAnswer.length, 0);
   expect(await wallet(page)).toBeGreaterThan(totalLetras);
 
+  // O atlas é desenhado além dos limites do mapa: mirar a luneta no vazio da
+  // borda não pode cobrar, e a mira precisa continuar de pé para o jogador
+  // escolher outro ponto.
+  const saldoAntesDaLuneta = await wallet(page);
+  await page.locator('.shop-slot button[data-item="reveal-area"]').click();
+  await expect(page.locator(".armed-banner")).toBeVisible();
+  const atlas = (await page.locator("svg.atlas").boundingBox())!;
+  await page.mouse.click(atlas.x + 4, atlas.y + atlas.height - 4);
+  await expect(page.getByText("Não há nada para revelar aí.")).toBeVisible();
+  await expect(page.locator(".armed-banner")).toBeVisible();
+  expect(await wallet(page)).toBe(saldoAntesDaLuneta);
+  await page.keyboard.press("Escape");
+
   for (const key of map.objects.filter((object) => object.type === "key").slice(0, 2)) {
     await page.locator(`[data-cell-key="${coordinateKey(key.position)}"]`).click();
   }
