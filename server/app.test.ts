@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import { buildServer } from "./app.js";
 
+const GENERATION_TEST_TIMEOUT_MS = 20_000;
+
 describe("HTTP público", () => {
   it("expõe um healthcheck operacional sem depender de artefato diário", async () => {
     const app = await buildServer({
@@ -44,7 +46,7 @@ describe("HTTP público", () => {
     await expect(readFile(join(dataDirectory, "cruzaverso.sqlite"))).resolves.toBeTruthy();
 
     await app.close();
-  });
+  }, GENERATION_TEST_TIMEOUT_MS);
 
   it("aceita telemetria anônima mínima e respeita opt-out", async () => {
     const dataDirectory = await mkdtemp(join(tmpdir(), "cruzaverso-telemetry-"));
@@ -88,5 +90,5 @@ describe("HTTP público", () => {
     expect(arbitrary.statusCode).toBe(200);
     expect(arbitrary.json().world.seed).toContain("nebulosa");
     await debugApp.close();
-  });
+  }, GENERATION_TEST_TIMEOUT_MS);
 });

@@ -1,3 +1,61 @@
+/* Caveat e EB Garamond, self-hosted (SIL OFL 1.1) — ver public/assets/fonts/OFL.txt.
+   Caveat e o EB Garamond romano sao fontes variaveis: um arquivo por subset cobre
+   toda a faixa de pesos. O italico do EB Garamond e estatico, peso 400. */
+
+@font-face {
+  font-family: "Caveat";
+  src: url("/assets/fonts/caveat-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Caveat";
+  src: url("/assets/fonts/caveat-latin-ext.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "EB Garamond";
+  src: url("/assets/fonts/ebgaramond-latin.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "EB Garamond";
+  src: url("/assets/fonts/ebgaramond-latin-ext.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "EB Garamond";
+  src: url("/assets/fonts/ebgaramond-italic-latin.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "EB Garamond";
+  src: url("/assets/fonts/ebgaramond-italic-latin-ext.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
   color: #272d2b;
   background: #17201e;
@@ -101,8 +159,8 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 
 .landing-card h1 {
   margin: 4px 0 2px;
-  font-family: "Segoe Print", "Bradley Hand", cursive;
-  font-size: clamp(3.8rem, 9vw, 6.6rem);
+  font-family: "Caveat", "Segoe Print", cursive;
+  font-size: clamp(4.4rem, 10vw, 7.6rem);
   line-height: 1;
   letter-spacing: -.08em;
   color: #263530;
@@ -184,11 +242,11 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .wordmark { display: flex; align-items: center; gap: 10px; justify-self: start; padding: 0; border: 0; color: inherit; background: none; cursor: pointer; text-align: left; }
 .wordmark-star { width: 37px; height: 37px; display: grid; place-items: center; border: 1px solid rgb(230 208 155 / 45%); border-radius: 50%; color: #dbb468; }
 .wordmark > span:last-child { display: flex; flex-direction: column; }
-.wordmark strong { font-family: "Segoe Print", cursive; font-size: 1.24rem; line-height: 1.15; }
+.wordmark strong { font-family: "Caveat", "Segoe Print", cursive; font-size: 1.42rem; line-height: 1.15; }
 .wordmark small { color: #8e9b94; font-size: .59rem; letter-spacing: .12em; }
 .objective-strip { display: flex; align-items: center; gap: 12px; min-width: 390px; padding: 8px 14px; border: 1px solid rgb(220 199 145 / 16%); border-radius: 5px; background: rgb(248 229 181 / 5%); }
 .objective-icon { width: 34px; height: 34px; display: grid; place-items: center; color: #202c28; border-radius: 50%; background: #c79b50; }
-.objective-strip > span:nth-child(2) { display: flex; flex: 1; flex-direction: column; }
+.objective-strip > span:nth-of-type(2) { display: flex; flex: 1; flex-direction: column; }
 .objective-strip small { color: #a99a79; font-size: .55rem; font-weight: 800; letter-spacing: .14em; }
 .objective-strip strong { color: #ede9dc; font-size: .79rem; font-weight: 650; }
 .objective-strip b { color: #f5d895; font-size: 1.25rem; }.objective-strip b i { color: #75827c; font-size: .75rem; font-style: normal; }
@@ -201,8 +259,29 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .atlas-frame::before { content: ""; position: absolute; inset: 12px; border: 1px solid rgb(233 219 181 / 11%); border-radius: 18px; pointer-events: none; }
 .atlas { width: 100%; height: calc(100vh - 118px); display: block; cursor: grab; filter: drop-shadow(0 18px 22px rgb(0 0 0 / 32%)); touch-action: none; user-select: none; }
 .atlas:active { cursor: grabbing; }
-.paper-wash { fill: rgb(245 230 195 / 39%); stroke: rgb(71 63 44 / 30%); stroke-width: 2; }
-.biome-washes line { opacity: .17; mix-blend-mode: multiply; }
+.paper-wash { fill: rgb(245 230 195 / 39%); stroke: none; }
+/* Atlas de biomas: aguada borrada + hachura + costa desenhada */
+.biome-atlas { pointer-events: none; }
+.biome-wash { opacity: .16; mix-blend-mode: multiply; }
+.biome-texture { opacity: .3; mix-blend-mode: multiply; }
+.coast-halo { fill: none; stroke: rgb(94 78 52 / 16%); stroke-width: 6; stroke-linecap: round; }
+.coast-line { fill: none; stroke: rgb(74 62 43 / 62%); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 11 6; vector-effect: non-scaling-stroke; }
+.biome-labels text { fill: rgb(70 60 42 / 62%); font-family: "EB Garamond", Georgia, serif; font-size: 19px; font-style: italic; letter-spacing: .3em; text-anchor: middle; text-transform: uppercase; }
+.section-frame { fill: none; stroke: rgb(63 55 40 / 45%); stroke-width: 2.4; vector-effect: non-scaling-stroke; pointer-events: none; }
+
+/* A névoa é a carta antiga: toda a mobília vive dentro dela */
+.fog-grain { opacity: .72; }
+.fog-chart, .fog-chart-revealed { fill: none; stroke: rgb(58 50 36 / 34%); stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.fog-chart-revealed { opacity: .4; }
+.chart-graticule path { stroke: rgb(58 50 36 / 16%); stroke-width: 1; }
+.chart-rhumbs path { stroke: rgb(72 58 40 / 13%); stroke-width: .9; }
+.chart-rose path { stroke-width: 1.5; }
+.chart-rose .rose-point { fill: rgb(58 50 36 / 12%); }
+.chart-rose text { fill: rgb(58 50 36 / 44%); font-family: "EB Garamond", Georgia, serif; font-size: 17px; font-style: italic; text-anchor: middle; }
+.chart-ornaments path { stroke: rgb(72 58 40 / 26%); stroke-width: 1.3; }
+.fog-coast { fill: none; pointer-events: none; }
+.fog-coast .coast-outline { stroke: rgb(66 56 40 / 45%); stroke-width: 1.7; vector-effect: non-scaling-stroke; }
+.fog-coast .coast-hachure path { stroke: rgb(66 56 40 / 26%); stroke-width: 1.1; stroke-linecap: round; }
 .fog-layer { pointer-events: none; }
 .fog-wash { fill: url("#fog-haze"); }
 .word-frame { fill: none; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; transition: opacity .2s, stroke .2s; }
@@ -212,17 +291,17 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .word-frame.is-solved { stroke: rgb(42 71 62 / 74%); stroke-width: 2; }
 .word-frame.is-selected { stroke: #a36f29; stroke-width: 3; opacity: 1; filter: drop-shadow(0 2px 2px rgb(67 48 25 / 20%)); }
 .crossword-cell { cursor: pointer; }
-.crossword-cell rect { fill: rgb(247 239 216 / 62%); stroke: #626659; stroke-width: 1.4; vector-effect: non-scaling-stroke; transition: opacity .2s, fill .2s, stroke .2s; }
-.crossword-cell.is-distant rect { fill: rgb(47 58 54 / 18%); stroke: rgb(50 59 54 / 28%); opacity: .6; }
-.crossword-cell.is-detailed rect { filter: url(#paper-shadow); }
-.crossword-cell.is-available rect { fill: rgb(255 249 231 / 92%); stroke: #5e665c; }
-.crossword-cell.is-available:hover rect { fill: #fff9e9; stroke: #9a7441; stroke-width: 2; }
-.crossword-cell.is-selected rect { fill: #fae9b9; stroke: #a67432; stroke-width: 2.3; }
-.crossword-cell.is-active rect { fill: #fff7df; stroke: #263e36; stroke-width: 3; }
-.crossword-cell.is-solved rect { fill: #f7ecd0; stroke: #344b43; stroke-width: 2; }
+.crossword-cell path { fill: rgb(247 239 216 / 62%); stroke: #626659; stroke-width: 1.4; vector-effect: non-scaling-stroke; transition: opacity .2s, fill .2s, stroke .2s; }
+.crossword-cell.is-distant path { fill: rgb(47 58 54 / 18%); stroke: rgb(50 59 54 / 28%); opacity: .6; }
+.crossword-cell.is-detailed path { filter: url(#paper-shadow); }
+.crossword-cell.is-available path { fill: rgb(255 249 231 / 92%); stroke: #5e665c; }
+.crossword-cell.is-available:hover path { fill: #fff9e9; stroke: #9a7441; stroke-width: 2; }
+.crossword-cell.is-selected path { fill: #fae9b9; stroke: #a67432; stroke-width: 2.3; }
+.crossword-cell.is-active path { fill: #fff7df; stroke: #263e36; stroke-width: 3; }
+.crossword-cell.is-solved path { fill: #f7ecd0; stroke: #344b43; stroke-width: 2; }
 .cell-letters { pointer-events: none; user-select: none; }.cell-letters text { font-size: 21px; text-anchor: middle; }
-.pencil-letter { fill: #6d7471; font-family: "Segoe Print", cursive; font-style: italic; opacity: .82; }
-.ink-letter { fill: #243934; font-family: Georgia, serif; font-weight: 750; }
+.pencil-letter { fill: #6d7471; font-family: "Caveat", "Segoe Print", cursive; font-style: italic; opacity: .82; }
+.ink-letter { fill: #243934; font-family: "EB Garamond", Georgia, serif; font-weight: 750; }
 .explorer-marker { filter: drop-shadow(0 3px 3px rgb(0 0 0 / 35%)); transition: transform .28s cubic-bezier(.3,.8,.3,1); }
 .explorer-marker circle { fill: #b45645; stroke: #fff3d8; stroke-width: 3; }
 .explorer-marker path { fill: #fff0ce; }
@@ -230,25 +309,27 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .key-object { fill: none; stroke: #8d6226; stroke-width: 3; }
 .exit-object { fill: rgb(68 91 77 / 12%); stroke: #40594e; stroke-width: 3; }
 .exit-object.is-locked { opacity:.68; stroke:#6d6050; stroke-dasharray:3 2; }.exit-object.is-unlocked { fill:rgb(199 157 78 / 28%); stroke:#986d2e; filter:drop-shadow(0 0 5px rgb(217 175 92 / 65%)); }
-.powerup-object { fill: #cf9e45; stroke: #fff0bd; stroke-width: 1.6; pointer-events: visiblePainted; cursor: help; transition: opacity .2s; }
-.powerup-object.is-under-letter { opacity: .14; }
-.powerup-object.is-under-letter:hover { opacity: .22; }
+.powerup-object { pointer-events: visiblePainted; cursor: help; }
+.powerup-object .powerup-art { fill: none; stroke: #6d4a1c; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.powerup-object .powerup-halo { fill: rgb(255 246 219 / 90%); stroke: #b3893f; stroke-width: 1.4; }
+.powerup-object .powerup-badge { fill: #d8a34c; stroke: #fff4d9; stroke-width: 1.5; }
+.powerup-object.is-mark .powerup-art { stroke: #43310f; stroke-width: 1.5; }
+.powerup-object:hover .powerup-halo, .powerup-object:focus-visible .powerup-halo { fill: #fffaea; stroke: #8a6224; }
+.powerup-object:hover .powerup-badge, .powerup-object:focus-visible .powerup-badge { fill: #eebb63; }
 .map-powerup-tooltip { position: fixed; z-index: 45; width: min(260px, calc(100vw - 28px)); display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px; color: #f6edd8; border: 1px solid rgb(225 196 132 / 28%); border-radius: 5px; background: #293a34; box-shadow: 0 8px 24px rgb(0 0 0 / 34%); pointer-events: none; font-size: .67rem; line-height: 1.42; }
-.map-powerup-tooltip > i { color: #e1b45f; font-family: Georgia, serif; font-size: 1.25rem; font-style: normal; line-height: 1; }
+.map-powerup-tooltip > i { color: #e1b45f; font-family: "EB Garamond", Georgia, serif; font-size: 1.25rem; font-style: normal; line-height: 1; }
 .map-powerup-tooltip > span { display: flex; flex-direction: column; gap: 2px; }.map-powerup-tooltip strong { color: #f4d99f; font-size: .73rem; }
 .direction-arrow path { fill: #b75445; animation: point 1s ease-in-out infinite alternate; }
 @keyframes point { to { transform: translateX(5px); } }
-.map-legend { position: absolute; left: 36px; bottom: 30px; display: flex; gap: 14px; padding: 8px 12px; border: 1px solid rgb(87 72 49 / 22%); border-radius: 4px; color: #4f554f; background: rgb(245 233 204 / 86%); box-shadow: 0 3px 12px rgb(0 0 0 / 18%); font-size: .62rem; font-weight: 700; }
 .map-controls { position:absolute; top:34px; right:34px; display:grid; gap:5px; padding:6px; border:1px solid rgb(85 72 49 / 22%); border-radius:5px; background:rgb(244 231 198 / 88%); box-shadow:0 5px 16px rgb(0 0 0 / 18%); }
-.map-controls button { width:30px; height:30px; display:grid; place-items:center; padding:0; border:0; border-bottom:1px solid rgb(74 72 58 / 13%); color:#46534d; background:transparent; cursor:pointer; font-family:Georgia,serif; font-size:1rem; }.map-controls button:hover { color:#f8ead0; border-radius:3px; background:#5b6d64; }
-.map-legend span { display: flex; align-items: center; gap: 5px; white-space: nowrap; }.dot { width: 8px; height: 8px; border-radius: 50%; }.dot.cotidiano { background:#758c68 }.dot.ciencia { background:#5583a2 }.dot.historia { background:#b1814e }.dot.cultura { background:#a8616c }
-.fog-legend { padding-right: 10px; border-right: 1px solid rgb(74 72 58 / 18%); }.fog-swatch { width: 13px; height: 9px; border: 1px solid rgb(53 62 57 / 30%); border-radius: 7px; background: rgb(55 68 63 / 24%); box-shadow: 3px -2px 0 rgb(55 68 63 / 10%); }
+.map-controls button { width:30px; height:30px; display:grid; place-items:center; padding:0; border:0; border-bottom:1px solid rgb(74 72 58 / 13%); color:#46534d; background:transparent; cursor:pointer; font-family:"EB Garamond", Georgia, serif; font-size:1rem; }.map-controls button:hover { color:#f8ead0; border-radius:3px; background:#5b6d64; }
+
 
 /* Clue desk */
 .clue-desk { min-height: 0; display: flex; flex-direction: column; padding: 20px 18px 16px; border-left: 1px solid rgb(239 226 190 / 13%); background: #202a27; box-shadow: -8px 0 28px rgb(0 0 0 / 16%); }
 .desk-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 14px; }
 .desk-heading > span:first-child { display: flex; flex-direction: column; }.desk-heading small { color: #ba9a60; font-size: .55rem; font-weight: 850; letter-spacing: .16em; }.desk-heading strong { margin-top: 3px; color: #d9d8cc; font-size: .81rem; }
-.solved-counter { color: #8d9b94; font-family: Georgia, serif; font-size: .86rem; }
+.solved-counter { color: #8d9b94; font-family: "EB Garamond", Georgia, serif; font-size: .86rem; }
 .clue-tabs { max-height: 122px; display: flex; gap: 7px; overflow: auto hidden; padding: 2px 3px 12px; scrollbar-color: #68766f transparent; }
 .clue-tabs button { min-width: 100px; height: 43px; display: grid; grid-template-columns: 25px 1fr auto; align-items: center; gap: 5px; padding: 0 8px; border: 1px solid rgb(233 218 178 / 13%); border-radius: 4px; color: #aeb8b2; background: rgb(255 255 255 / 3%); cursor: pointer; }
 .clue-tabs button b { width: 23px; height: 23px; display: grid; place-items: center; border-radius: 50%; color: #cab079; background: rgb(196 161 93 / 12%); font-size: .64rem; }.clue-tabs button span { overflow: hidden; font-size: .63rem; text-align: left; text-overflow: ellipsis; white-space: nowrap; }.clue-tabs button i { color: #718078; font-style: normal; }
@@ -257,12 +338,12 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .current-clue::before { content: ""; position: absolute; width: 75px; height: 17px; top: -7px; right: 42px; background: rgb(205 187 145 / 68%); transform: rotate(3deg); }
 .biome-stamp { display: inline-block; padding: 4px 8px; border: 1px solid currentColor; border-radius: 2px; font-size: .55rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; transform: rotate(-1.5deg); }
 .biome-cotidiano { color:#617052 }.biome-ciencia { color:#49738e }.biome-historia { color:#936937 }.biome-cultura-pop { color:#96535d }
-.current-clue > p { min-height: 55px; margin: 15px 0 18px; font-family: Georgia, serif; font-size: .94rem; line-height: 1.48; }
+.current-clue > p { min-height: 55px; margin: 15px 0 18px; font-family: "EB Garamond", Georgia, serif; font-size: .94rem; line-height: 1.48; }
 .current-clue form > label { display: block; margin-bottom: 5px; color: #827967; font-size: .59rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .answer-pattern { display: flex; align-items: center; gap: 3px; width: 100%; margin: 9px 0 12px; padding: 2px 1px 4px; }
-.answer-slot { min-width: 0; max-width: 34px; height: 34px; flex: 1 1 27px; display: grid; place-items: center; padding: 0; color: #59635e; border: 1px solid #777969; border-radius: 2px; background: rgb(255 251 235 / 48%); font-family: "Segoe Print", cursive; font-size: clamp(.68rem, 1vw, .92rem); text-transform: uppercase; cursor: text; }
+.answer-slot { min-width: 0; max-width: 34px; height: 34px; flex: 1 1 27px; display: grid; place-items: center; padding: 0; color: #59635e; border: 1px solid #777969; border-radius: 2px; background: rgb(255 251 235 / 48%); font-family: "Caveat", "Segoe Print", cursive; font-size: clamp(.68rem, 1vw, .92rem); text-transform: uppercase; cursor: text; }
 .answer-slot.active { color: #263d35; border: 2px solid #a46f2d; background: #fff4d3; box-shadow: 0 0 0 2px rgb(164 111 45 / 14%); }
-.answer-slot.in-ink { color: #263d35; border-color: #3b554b; background: rgb(237 228 200 / 78%); font-family: Georgia, serif; font-weight: 800; cursor: default; }
+.answer-slot.in-ink { color: #263d35; border-color: #3b554b; background: rgb(237 228 200 / 78%); font-family: "EB Garamond", Georgia, serif; font-weight: 800; cursor: default; }
 .answer-line { display: grid; grid-template-columns: 1fr auto; gap: 7px; }
 .answer-line input { min-width: 0; height: 42px; padding: 0 10px; border: 0; border-bottom: 2px solid #5d655d; color: #4d5753; background: rgb(255 255 255 / 22%); font-size: .72rem; letter-spacing: .01em; }
 .answer-line button { padding: 0 14px; border: 0; border-radius: 3px; color: #f9eed6; background: #40564e; cursor: pointer; font-size: .72rem; font-weight: 750; }.answer-line button:disabled { opacity: .55; cursor: default; }
@@ -270,37 +351,61 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .inventory { margin-top: auto; padding-top: 17px; }.inventory-heading { display: flex; justify-content: space-between; margin: 0 2px 9px; }.inventory-heading span { color: #ba9a60; font-size: .57rem; font-weight: 850; letter-spacing: .15em; }.inventory-heading small { color: #79867f; font-size: .6rem; }
 .powerup-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
 .powerup-grid button { position: relative; min-width: 0; height: 66px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px; border: 1px solid rgb(235 215 167 / 15%); border-radius: 5px; color: #d9cda9; background: rgb(255 255 255 / 4%); cursor: pointer; }
-.powerup-grid button:hover:not(:disabled) { border-color: #bf9a55; background: rgb(191 154 85 / 12%); }.powerup-grid button:disabled { opacity: .32; cursor: default; }.powerup-grid button i { color: #e5bb68; font-family: Georgia, serif; font-size: 1.15rem; font-style: normal; }.powerup-grid button b { position: absolute; top: 4px; right: 6px; color: #eee2c5; font-size: .58rem; }.powerup-grid button span { max-width: 70px; overflow: hidden; color: #96a29c; font-size: .49rem; text-overflow: ellipsis; white-space: nowrap; }
+.powerup-grid button:hover:not(:disabled) { border-color: #bf9a55; background: rgb(191 154 85 / 12%); }.powerup-grid button:disabled { opacity: .32; cursor: default; }.powerup-grid button b { position: absolute; top: 4px; right: 6px; color: #eee2c5; font-size: .58rem; }.powerup-grid button span { max-width: 70px; overflow: hidden; color: #96a29c; font-size: .49rem; text-overflow: ellipsis; white-space: nowrap; }
 
 .feedback-toast { position: fixed; z-index: 20; left: 50%; bottom: 28px; translate: -50% 0; padding: 10px 17px; border: 1px solid rgb(255 255 255 / 15%); border-radius: 4px; color: #fff3d8; background: #3d5149; box-shadow: 0 8px 30px rgb(0 0 0 / 30%); font-size: .78rem; animation: toast-in .2s ease-out; }
-.target-hint { position:fixed; z-index:22; left:50%; bottom:30px; translate:-50% 0; display:flex; align-items:center; gap:10px; padding:10px 12px; color:#33413c; border:1px solid rgb(80 68 46 / 25%); border-radius:4px; background:#f0e1bc; box-shadow:0 8px 28px rgb(0 0 0 / 28%); font-size:.72rem; }.target-hint b { color:#9a6c30; font-family:Georgia,serif; font-size:1.05rem; }.target-hint button { padding:5px 8px; border:0; color:#f5ead2; background:#56675f; cursor:pointer; font-size:.6rem; }
+.target-hint { position:fixed; z-index:22; left:50%; bottom:30px; translate:-50% 0; display:flex; align-items:center; gap:10px; padding:10px 12px; color:#33413c; border:1px solid rgb(80 68 46 / 25%); border-radius:4px; background:#f0e1bc; box-shadow:0 8px 28px rgb(0 0 0 / 28%); font-size:.72rem; }.target-hint b { color:#9a6c30; font-family:"EB Garamond", Georgia, serif; font-size:1.05rem; }.target-hint button { padding:5px 8px; border:0; color:#f5ead2; background:#56675f; cursor:pointer; font-size:.6rem; }
 .feedback-toast.incorrect, .feedback-toast.blocked { background: #725048; }.feedback-toast.collected { background: #856632; }
 @keyframes toast-in { from { opacity:0; transform:translateY(8px) } }
 .field-tip { position: fixed; z-index: 18; left: 31px; bottom: 78px; width: min(375px, calc(100vw - 62px)); display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 12px 12px 12px 15px; color: #38413d; border: 1px solid rgb(76 70 55 / 25%); border-radius: 4px; background: #efe2c1; box-shadow: 0 10px 30px rgb(0 0 0 / 26%); transform: rotate(-.4deg); }.field-tip > span { color: #9f7134; font-size: 1.5rem; }.field-tip p { margin: 0; font-size: .68rem; line-height: 1.4; }.field-tip p strong { display:block; color:#294038; font-size:.73rem; }.field-tip button { padding: 7px 9px; border: 0; color: #f8ecd2; background: #4b5e55; cursor:pointer; font-size:.62rem; }
-.settings-popover { position: fixed; z-index: 30; top: 68px; right: 18px; width: 280px; padding: 18px; border: 1px solid rgb(232 215 171 / 16%); border-radius: 5px; color: #d9ddd6; background: #26322e; box-shadow: 0 15px 40px rgb(0 0 0 / 38%); }.settings-popover h2 { margin: 0 0 13px; font-family: Georgia, serif; font-size: 1rem; }.settings-popover label { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid rgb(255 255 255 / 7%); font-size:.75rem; }.settings-popover input { accent-color:#c4994e; }.text-button { width:100%; padding:9px 0; border:0; color:#bcb9ae; background:none; cursor:pointer; text-align:left; font-size:.7rem; }.text-button:disabled { opacity:.35; cursor:default; }
+.settings-popover { position: fixed; z-index: 30; top: 68px; right: 18px; width: 280px; padding: 18px; border: 1px solid rgb(232 215 171 / 16%); border-radius: 5px; color: #d9ddd6; background: #26322e; box-shadow: 0 15px 40px rgb(0 0 0 / 38%); }.settings-popover h2 { margin: 0 0 13px; font-family: "EB Garamond", Georgia, serif; font-size: 1rem; }.settings-popover label { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid rgb(255 255 255 / 7%); font-size:.75rem; }.settings-popover input { accent-color:#c4994e; }.text-button { width:100%; padding:9px 0; border:0; color:#bcb9ae; background:none; cursor:pointer; text-align:left; font-size:.7rem; }.text-button:disabled { opacity:.35; cursor:default; }
 .volume-control input { width:120px; }
 
 /* Summary */
 .summary-backdrop { position: fixed; z-index: 50; inset: 0; display: grid; place-items: center; padding: 22px; background: rgb(14 20 18 / 75%); backdrop-filter: blur(5px); }
-.summary-card { position:relative; width:min(610px,100%); padding:46px 48px 38px; color:#303a36; text-align:center; border:1px solid rgb(77 69 51 / 28%); border-radius:5px; background:linear-gradient(rgb(245 234 204 / 82%), rgb(239 224 187 / 82%)), url("/assets/atlas-paper.png") center / cover; box-shadow:0 30px 80px rgb(0 0 0 / 50%); transform:rotate(-.2deg); }.summary-card::before { content:""; position:absolute; inset:12px; border:1px dashed rgb(65 74 63 / 22%); pointer-events:none; }.summary-compass { position:relative; display:grid; place-items:center; width:56px; height:56px; margin:0 auto 16px; color:#f7e7c3; border-radius:50%; background:#42574f; font-size:1.8rem; }.summary-card h1 { position:relative; margin:7px 0 12px; font-family:"Segoe Print",cursive; font-size:clamp(2rem,7vw,3.25rem); line-height:1.1; }.summary-card > p:not(.eyebrow) { position:relative; width:min(440px,100%); margin:0 auto; color:#67706b; font-family:Georgia,serif; line-height:1.5; }.summary-stats { position:relative; display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:26px 0; }.summary-stats span { padding:14px 8px; border:1px dashed rgb(67 74 62 / 28%); font-size:.63rem; }.summary-stats b { display:block; margin-bottom:4px; color:#8b622f; font-family:Georgia,serif; font-size:1.3rem; }.summary-card > button { position:relative; min-width:245px; padding:13px 20px; border:0; border-radius:3px; color:#f8ecd2; background:#3e554c; cursor:pointer; font-weight:750; }.summary-card > small { position:relative; display:block; margin-top:12px; color:#827b69; font-size:.62rem; }
+.summary-card { position:relative; width:min(610px,100%); padding:46px 48px 38px; color:#303a36; text-align:center; border:1px solid rgb(77 69 51 / 28%); border-radius:5px; background:linear-gradient(rgb(245 234 204 / 82%), rgb(239 224 187 / 82%)), url("/assets/atlas-paper.png") center / cover; box-shadow:0 30px 80px rgb(0 0 0 / 50%); transform:rotate(-.2deg); }.summary-card::before { content:""; position:absolute; inset:12px; border:1px dashed rgb(65 74 63 / 22%); pointer-events:none; }.summary-compass { position:relative; display:grid; place-items:center; width:56px; height:56px; margin:0 auto 16px; color:#f7e7c3; border-radius:50%; background:#42574f; font-size:1.8rem; }.summary-card h1 { position:relative; margin:7px 0 12px; font-family:"Caveat", "Segoe Print", cursive; font-size:clamp(2rem,7vw,3.25rem); line-height:1.1; }.summary-card > p:not(.eyebrow) { position:relative; width:min(440px,100%); margin:0 auto; color:#67706b; font-family:"EB Garamond", Georgia, serif; line-height:1.5; }.summary-stats { position:relative; display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:26px 0; }.summary-stats span { padding:14px 8px; border:1px dashed rgb(67 74 62 / 28%); font-size:.63rem; }.summary-stats b { display:block; margin-bottom:4px; color:#8b622f; font-family:"EB Garamond", Georgia, serif; font-size:1.3rem; }.summary-card > button { position:relative; min-width:245px; padding:13px 20px; border:0; border-radius:3px; color:#f8ecd2; background:#3e554c; cursor:pointer; font-weight:750; }.summary-card > small { position:relative; display:block; margin-top:12px; color:#827b69; font-size:.62rem; }
 
 @media (max-width: 1050px) {
   .game-header { grid-template-columns: auto 1fr auto; }.objective-strip { min-width:0; }.objective-strip strong { max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .game-layout { grid-template-columns:minmax(0,1fr) 330px; }.clue-desk { padding-inline:13px; }.map-legend { max-width:calc(100% - 72px); flex-wrap:wrap; }
-}
+  .game-layout { grid-template-columns:minmax(0,1fr) 330px; }.clue-desk { padding-inline:13px; }}
 
 @media (max-width: 820px) {
   .landing-card { padding:42px 23px 34px; }.expedition-ticket { gap:8px; padding-inline:9px; }.expedition-ticket > span:not(.ticket-divider) { min-width:0; flex:1; }
   .game-header { grid-template-columns:1fr auto; min-height:64px; }.objective-strip { grid-row:2; grid-column:1/-1; width:100%; }.active-time { display:none; }
-  .game-layout { display:flex; flex-direction:column; }.atlas-frame { min-height:55vh; padding:10px; }.atlas { height:55vh; }.clue-desk { min-height:420px; border-top:1px solid rgb(239 226 190 / 13%); border-left:0; }.current-clue { min-height:215px; }.field-tip { left:16px; bottom:16px; width:calc(100vw - 32px); }.map-legend { left:22px; bottom:18px; }
-}
+  .game-layout { display:flex; flex-direction:column; }.atlas-frame { min-height:55vh; padding:10px; }.atlas { height:55vh; }.clue-desk { min-height:420px; border-top:1px solid rgb(239 226 190 / 13%); border-left:0; }.current-clue { min-height:215px; }.field-tip { left:16px; bottom:16px; width:calc(100vw - 32px); }}
 
 @media (max-width: 540px) {
   .landing-shell { padding-inline:14px; }.landing-shell::before { inset:10px; }.landing-card h1 { font-size:3.45rem; }.expedition-ticket > span:nth-of-type(3), .expedition-ticket > .ticket-divider:last-of-type { display:none; }.landing-footer { left:20px; right:20px; }
   .game-header { padding:9px 12px; gap:8px; }.wordmark strong { font-size:1rem; }.wordmark small { display:none; }.objective-strip { padding:6px 9px; }.objective-strip strong { font-size:.67rem; }.header-actions { gap:5px; }
-  .map-legend { display:none; }.clue-tabs { max-height:90px; }.current-clue { padding-inline:15px; }.summary-card { padding:38px 20px 30px; }.summary-stats { grid-template-columns:1fr; }.summary-stats span { padding:7px; }.summary-stats b { display:inline; margin-right:5px; }
+  .clue-tabs { max-height:90px; }.current-clue { padding-inline:15px; }.summary-card { padding:38px 20px 30px; }.summary-stats { grid-template-columns:1fr; }.summary-stats span { padding:7px; }.summary-stats b { display:inline; margin-right:5px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
 }
+
+/* Moldura desenhada atrás de painel HTML */
+.sketch-frame { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.sketch-frame path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; opacity: .42; }
+/* A moldura só apaga a borda reta. Ela NÃO concede `position`: fazer isso
+   atropelava elementos já posicionados de mesma especificidade — `.field-tip`
+   (fixed) e `.map-controls` (absolute) caíam no fluxo. Quem precisa de contexto
+   de posicionamento declara abaixo, explicitamente. */
+.has-sketch-frame { border-color: transparent !important; }
+.objective-strip, .start-button, .clue-tabs button, .answer-slot, .icon-button, .map-cartouche { position: relative; }
+
+/* Cartucho da carta */
+.map-cartouche { position: absolute; left: 34px; bottom: 28px; min-width: 176px; padding: 13px 17px 11px; color: #4b4634; background: rgb(244 232 203 / 88%); box-shadow: 0 4px 16px rgb(0 0 0 / 22%); }
+.map-cartouche strong { display: block; margin-bottom: 8px; color: #4a3f27; font-family: "EB Garamond", Georgia, serif; font-size: .78rem; font-style: italic; font-weight: 600; letter-spacing: .04em; }
+.map-cartouche ul { display: flex; flex-wrap: wrap; gap: 4px 13px; margin: 0 0 8px; padding: 0; list-style: none; }
+.map-cartouche li { display: flex; align-items: center; gap: 6px; font-size: .63rem; font-weight: 700; white-space: nowrap; }
+.map-cartouche li i { width: 8px; height: 8px; border: 1px solid rgb(74 63 39 / 45%); border-radius: 50%; }
+.map-cartouche small { display: block; color: #7b7159; font-family: "EB Garamond", Georgia, serif; font-size: .63rem; font-style: italic; }
+.powerup-glyph { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.powerup-grid button .powerup-glyph { color: #e5bb68; }
+.powerup-grid button:disabled .powerup-glyph { color: #8d8778; }
+.map-powerup-tooltip .powerup-glyph { flex: none; color: #e1b45f; }
+/* Estados fortes pedem traço mais firme que o padrão da moldura */
+.answer-slot.active .sketch-frame path { stroke: #a46f2d; stroke-width: 2.2; opacity: .95; }
+.answer-slot.in-ink .sketch-frame path { stroke: #3b554b; opacity: .8; }
+.clue-tabs button.active .sketch-frame path { stroke: #8c6736; stroke-width: 2; opacity: .9; }

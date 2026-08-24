@@ -19,6 +19,8 @@ import { normalizeGridAnswer } from "../content/catalog.js";
 import { GAME_BALANCE, POWERUP_DEFINITIONS } from "../config/game.js";
 import { sendTelemetry } from "./api.js";
 import { MapView } from "./MapView.js";
+import { PowerupGlyph } from "./PowerupGlyph.js";
+import { SketchFrame } from "./SketchFrame.js";
 import { playSound } from "./sfx.js";
 
 function saveKey(map: DailyMap): string {
@@ -457,14 +459,15 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
           <span className="wordmark-star">✣</span>
           <span><strong>Cruzaverso</strong><small>{map.date.split("-").reverse().join(" · ")}</small></span>
         </button>
-        <div className="objective-strip" aria-label="Objetivo da expedição">
+        <div className="objective-strip has-sketch-frame" aria-label="Objetivo da expedição">
+          <SketchFrame seed="tarja-objetivo" />
           <span className="objective-icon">⌘</span>
           <span><small>OBJETIVO</small><strong>Encontre 2 chaves e alcance a saída</strong></span>
           <b>{Math.min(state.keysCollected, 2)}<i>/2</i></b>
         </div>
         <div className="header-actions">
           <span className="active-time" title="Tempo ativo nesta expedição">◷ {formatActiveTime(state.activeMs)}</span>
-          <button className="icon-button" type="button" onClick={() => setSettingsOpen((open) => !open)} aria-label="Abrir ajustes">⚙</button>
+          <button className="icon-button has-sketch-frame" type="button" onClick={() => setSettingsOpen((open) => !open)} aria-label="Abrir ajustes"><SketchFrame seed="ajustes" roughness={1} />⚙</button>
         </div>
       </header>
 
@@ -491,10 +494,11 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
                 role="listitem"
                 key={word.id}
                 data-word-id={word.id}
-                className={`${word.id === selectedWordId ? "active" : ""} ${state.solvedWordIds.includes(word.id) ? "solved" : ""}`}
+                className={`has-sketch-frame ${word.id === selectedWordId ? "active" : ""} ${state.solvedWordIds.includes(word.id) ? "solved" : ""}`}
                 onClick={() => setSelectedWordId(word.id)}
                 title={state.solvedWordIds.includes(word.id) ? word.answer : word.clues.normal}
               >
+                <SketchFrame seed={`aba:${word.id}`} roughness={1.1} />
                 <b>{index + 1}</b>
                 <span>{state.solvedWordIds.includes(word.id) ? word.answer : `${word.gridAnswer.length} letras`}</span>
                 <i>{word.orientation === "horizontal" ? "→" : "↓"}</i>
@@ -502,7 +506,8 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
             ))}
           </div>
 
-          <section className="current-clue" aria-live="polite">
+          <section className="current-clue has-sketch-frame" aria-live="polite">
+            <SketchFrame seed={selectedWord?.id ?? "pista"} />
             <span className={`biome-stamp biome-${selectedWord?.biome ?? "cotidiano"}`}>
               {selectedWord?.biome.replace("-", " ") ?? "fronteira"}
             </span>
@@ -531,13 +536,14 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
                       <button
                         key={key}
                         type="button"
-                        className={`answer-slot ${index === activeCellIndex ? "active" : ""} ${inInk ? "in-ink" : ""}`}
+                        className={`answer-slot has-sketch-frame ${index === activeCellIndex ? "active" : ""} ${inInk ? "in-ink" : ""}`}
                         onClick={() => {
                           if (!inInk && !state.solvedWordIds.includes(selectedWord.id)) setEntryCell(index);
                           document.querySelector<HTMLInputElement>("#answer-input")?.focus();
                         }}
                         aria-label={`Letra ${index + 1}${value ? `: ${value}` : ": vazia"}`}
                       >
+                        <SketchFrame seed={`slot:${selectedWord.id}:${index}`} roughness={.9} />
                         {value}
                       </button>
                     );
@@ -580,8 +586,11 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
                   onClick={() => usePowerup(type)}
                   title={`${meta.name}: ${meta.description}`}
                   aria-pressed={type === "reveal-letter" ? pendingLetterTarget : undefined}
+                  className="has-sketch-frame"
                 >
-                  <i>{meta.icon}</i><b>{state.inventory[type]}</b><span>{meta.name}</span>
+                  <SketchFrame seed={`mochila:${type}`} roughness={1.2} />
+                  <PowerupGlyph powerupType={type} size={24} />
+                  <b>{state.inventory[type]}</b><span>{meta.name}</span>
                 </button>
               ))}
             </div>
@@ -602,7 +611,8 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
       ) : null}
 
       {tipVisible && state.status === "playing" ? (
-        <aside className="field-tip">
+        <aside className="field-tip has-sketch-frame">
+          <SketchFrame seed="dica-de-campo" />
           <span>✎</span>
           <p><strong>Primeiro traço</strong>Comece a digitar. Tab troca de palavra e as setas movem o explorador pelos caminhos em tinta.</p>
           <button type="button" onClick={dismissTip} aria-label="Entendi">Entendi</button>
@@ -631,7 +641,8 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
 
       {summaryOpen && state.status === "won" ? (
         <div className="summary-backdrop" role="dialog" aria-modal="true" aria-labelledby="summary-title">
-          <section className="summary-card">
+          <section className="summary-card has-sketch-frame">
+            <SketchFrame seed={map.id} roughness={2.4} />
             <span className="summary-compass">✣</span>
             <p className="eyebrow">EXPEDIÇÃO CONCLUÍDA</p>
             <h1 id="summary-title">O mapa se abriu.</h1>

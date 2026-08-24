@@ -2,19 +2,22 @@ import { createServer as createViteServer } from "vite";
 
 import { buildServer } from "./app.js";
 
+const apiPort = Number(process.env.PORT ?? 3000);
+const vitePort = Number(process.env.VITE_PORT ?? 5173);
+
 const api = await buildServer({
   dataDirectory: process.env.DATA_DIR ?? ".data",
   logger: true,
   scheduler: true,
   debug: true,
 });
-await api.listen({ host: "127.0.0.1", port: 3000 });
+await api.listen({ host: "127.0.0.1", port: apiPort });
 
 const vite = await createViteServer({
   server: {
     host: "0.0.0.0",
-    port: 5173,
-    proxy: { "/api": "http://127.0.0.1:3000" },
+    port: vitePort,
+    proxy: { "/api": `http://127.0.0.1:${apiPort}` },
   },
 });
 await vite.listen();
