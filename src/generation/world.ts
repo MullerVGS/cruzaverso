@@ -1,5 +1,6 @@
 import { BIOMES, type BiomeId, type ContentCatalog, type ContentEntry } from "../content/catalog.js";
 import { GAME_BALANCE } from "../config/game.js";
+import { biomeFieldSpecFromSeed, createBiomeField, majorityBiome, type BiomeField } from "./biome-field.js";
 import { SeededRandom, seedFingerprint } from "./random.js";
 import {
   cellsForWord,
@@ -44,22 +45,6 @@ interface PlacementOption {
   score: number;
 }
 
-function biomeAt(sites: readonly BiomeSite[], x: number, y: number): BiomeId {
-  let winner = sites[0];
-  if (!winner) {
-    throw new Error("Campo de biomas vazio");
-  }
-  let bestDistance = Number.POSITIVE_INFINITY;
-  for (const site of sites) {
-    const distance = (site.x - x) ** 2 + (site.y - y) ** 2;
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      winner = site;
-    }
-  }
-  return winner.biome;
-}
-
 function buildBiomeSites(random: SeededRandom): BiomeSite[] {
   const sites: BiomeSite[] = BIOMES.map((biome, index) => ({
     id: `biome-${index}-${biome}`,
@@ -81,7 +66,7 @@ function buildBiomeSites(random: SeededRandom): BiomeSite[] {
   return sites;
 }
 
-function buildChunks(random: SeededRandom, sites: readonly BiomeSite[], count: number): WorldChunk[] {
+function buildChunks(random: SeededRandom, field: BiomeField, count: number): WorldChunk[] {
   const coordinates = new Map<string, { x: number; y: number }>();
   coordinates.set("0,0", { x: 0, y: 0 });
   const directions = [
@@ -107,7 +92,7 @@ function buildChunks(random: SeededRandom, sites: readonly BiomeSite[], count: n
       id: `chunk-${index}`,
       x,
       y,
-      biome: biomeAt(sites, x, y),
+      biome: field.biomeAt(x, y),
       neighbors: [],
     };
   });
@@ -214,7 +199,7 @@ function candidateOptions(
   catalog: ContentCatalog,
   words: readonly PlacedWord[],
   used: ReadonlySet<string>,
-  sites: readonly BiomeSite[],
+  field: BiomeField,
   targetChunk: WorldChunk,
   random: SeededRandom,
 ): PlacementOption[] {
@@ -231,14 +216,16 @@ function candidateOptions(
             x: anchorCell.x - (orientation === "horizontal" ? position : 0),
             y: anchorCell.y - (orientation === "vertical" ? position : 0),
           };
+          const cells = cellsForWord({ gridAnswer: entry.gridAnswer, orientation, start });
+          const biome = majorityBiome(field, cells);
+          if (!entry.biomes.includes(biome)) continue;
+          const inspected = inspectPlacement(entry, orientation, start, cellIndex);
+          if (!inspected.valid) continue;
+
           const middle = {
             x: start.x + (orientation === "horizontal" ? (entry.gridAnswer.length - 1) / 2 : 0),
             y: start.y + (orientation === "vertical" ? (entry.gridAnswer.length - 1) / 2 : 0),
           };
-          const biome = biomeAt(sites, middle.x, middle.y);
-          if (!entry.biomes.includes(biome)) continue;
-          const inspected = inspectPlacement(entry, orientation, start, cellIndex);
-          if (!inspected.valid) continue;
 
           const chunkDistance = Math.abs(targetChunk.x - middle.x) + Math.abs(targetChunk.y - middle.y);
           const spread = Math.min(18, Math.abs(middle.x) + Math.abs(middle.y));
@@ -288,8 +275,10 @@ function buildAttempt(
 ): DailyWorld {
   const random = new SeededRandom(`${seed}:attempt:${attempt}`);
   const biomeSites = buildBiomeSites(random.fork("biomes"));
-  const chunks = buildChunks(random.fork("chunks"), biomeSites, config.chunkCount);
-  const originBiome = biomeAt(biomeSites, 0, 0);
+  const biomeField = biomeFieldSpecFromSeed(`${seed}:attempt:${attempt}:field`);
+  const field = createBiomeField(biomeField, biomeSites);
+  const chunks = buildChunks(random.fork("chunks"), field, config.chunkCount);
+  const originBiome = field.biomeAt(0, 0);
   const initialEntry = random.pick(catalog.byBiome[originBiome]);
   const initialStart = { x: -Math.floor(initialEntry.gridAnswer.length / 2), y: 0 };
   const words: PlacedWord[] = [
@@ -299,7 +288,7 @@ function buildAttempt(
 
   for (let index = 1; index < config.targetWords; index += 1) {
     const targetChunk = chunks[index % chunks.length] as WorldChunk;
-    const options = candidateOptions(catalog, words, used, biomeSites, targetChunk, random);
+    const options = candidateOptions(catalog, words, used, field, targetChunk, random);
     if (options.length === 0) break;
     const option = options[random.int(0, Math.min(5, options.length))] as PlacementOption;
     words.push(toPlacedWord(option.entry, index, option.orientation, option.start, option.biome));
@@ -309,14 +298,15 @@ function buildAttempt(
   const crossings = countCrossings(words);
   const cycles = Math.max(0, crossings - words.length + 1);
   const world: DailyWorld = {
-    schemaVersion: 1,
-    generatorVersion: "1.1.0",
+    schemaVersion: 2,
+    generatorVersion: "2.0.0",
     datasetVersion: "curadoria-v1",
     configVersion: "1.0.0",
-    id: `${date}-g1-${seedFingerprint(seed)}`,
+    id: `${date}-g2-${seedFingerprint(seed)}`,
     date,
     seed,
     biomeSites,
+    biomeField,
     chunks,
     words,
     bounds: calculateBounds(words),

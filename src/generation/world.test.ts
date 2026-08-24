@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { loadBundledCatalog } from "../content/bundled.js";
+import { createBiomeField, majorityBiome } from "./biome-field.js";
+import { cellsForWord } from "./types.js";
 import { generateDailyWorld, validateWorld } from "./world.js";
 
 const fastConfig = {
@@ -32,5 +34,26 @@ describe("mundo diário", () => {
     expect(tomorrow.words.map((word) => word.entryId)).not.toEqual(
       today.words.map((word) => word.entryId),
     );
+  });
+
+  it("publica o campo de biomas e a versão nova do artefato", () => {
+    const catalog = loadBundledCatalog();
+    const world = generateDailyWorld({ date: "2026-08-23", catalog, config: fastConfig });
+
+    expect(world.schemaVersion).toBe(2);
+    expect(world.generatorVersion).toBe("2.0.0");
+    expect(world.biomeField.seed).toBeTypeOf("number");
+    expect(world.biomeField.octaves).toBeGreaterThan(0);
+    expect(world.id).toContain("-g2-");
+  });
+
+  it("cataloga cada palavra no bioma onde ela ocupa mais células", () => {
+    const catalog = loadBundledCatalog();
+    const world = generateDailyWorld({ date: "2026-08-23", catalog, config: fastConfig });
+    const field = createBiomeField(world.biomeField, world.biomeSites);
+
+    for (const word of world.words) {
+      expect(word.biome).toBe(majorityBiome(field, cellsForWord(word)));
+    }
   });
 });

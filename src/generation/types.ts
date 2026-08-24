@@ -1,4 +1,5 @@
 import type { BiomeId } from "../content/catalog.js";
+import type { BiomeFieldSpec } from "./biome-field.js";
 
 export interface Coordinate {
   x: number;
@@ -56,7 +57,7 @@ export interface GenerationReport {
 }
 
 export interface DailyWorld {
-  schemaVersion: 1;
+  schemaVersion: 2;
   generatorVersion: string;
   datasetVersion: string;
   configVersion: string;
@@ -64,6 +65,7 @@ export interface DailyWorld {
   date: string;
   seed: string;
   biomeSites: BiomeSite[];
+  biomeField: BiomeFieldSpec;
   chunks: WorldChunk[];
   words: PlacedWord[];
   bounds: Bounds;
@@ -115,7 +117,7 @@ export interface DailyMapReport {
 }
 
 export interface DailyMap {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   worldId: string;
   configVersion: string;
@@ -123,6 +125,7 @@ export interface DailyMap {
   seed: string;
   size: "medium";
   biomeSites: BiomeSite[];
+  biomeField: BiomeFieldSpec;
   words: PlacedWord[];
   bounds: Bounds;
   spawn: Coordinate;
