@@ -107,7 +107,7 @@ test("comprar um item cobra só quando ele aplica, e cancelar devolve tudo", asy
   await page.getByRole("button", { name: /desbravar|continuar|rever/i }).click();
 
   const saldoInicial = await wallet(page);
-  expect(saldoInicial).toBe(15);
+  expect(saldoInicial).toBe(25);
 
   const letra = page.locator('.shop-slot button[data-item="reveal-letter"]');
   const aviso = page.locator(".armed-banner");
@@ -116,7 +116,7 @@ test("comprar um item cobra só quando ele aplica, e cancelar devolve tudo", asy
   await letra.click();
   await expect(aviso).toBeVisible();
   await expect(aviso).toContainText("Letra encontrada");
-  await expect(page.locator(".wallet i")).toContainText("5");
+  await expect(page.locator(".wallet i")).toContainText("15");
   await expect(letra).toHaveAttribute("aria-pressed", "true");
   expect(await wallet(page)).toBe(saldoInicial);
   if (process.env.CAPTURE_UI === "true") {
@@ -152,9 +152,11 @@ test("comprar um item cobra só quando ele aplica, e cancelar devolve tudo", asy
   await expect(letraComprada).toHaveText(alvo.letter);
   await expect(page.locator(".answer-slot.is-hinted")).toHaveCount(1);
 
-  // Gastar deixa os itens caros fora de alcance, e isso tem que ser visível.
-  await expect(page.locator('.shop-slot button[data-item="simplify-clue"]')).toBeDisabled();
-  await expect(page.locator('.shop-slot button[data-item="simplify-clue"]')).toHaveClass(/is-broke/);
+  // O estipêndio paga duas ajudas no começo: depois da letra ainda sobra para a
+  // pista, mas os itens de exploração ficam fora de alcance, e isso é visível.
+  await expect(page.locator('.shop-slot button[data-item="simplify-clue"]')).toBeEnabled();
+  await expect(page.locator('.shop-slot button[data-item="reveal-area"]')).toBeDisabled();
+  await expect(page.locator('.shop-slot button[data-item="reveal-area"]')).toHaveClass(/is-broke/);
 });
 
 test("a pista extra entra sem apagar a original", async ({ page, request }) => {
@@ -177,7 +179,7 @@ test("a pista extra entra sem apagar a original", async ({ page, request }) => {
   await expect(page.locator(".clue-line")).toHaveCount(2);
   await expect(page.locator(".clue-line").first()).toContainText(primeira!.clues.normal);
   await expect(page.locator(".clue-line.is-extra")).toContainText(primeira!.clues.simple);
-  expect(await wallet(page)).toBe(15 - 14);
+  expect(await wallet(page)).toBe(25 - 14);
 });
 
 test("o teclado escreve, troca de palavra e move sem disputar letras com a câmera", async ({ page, request }) => {

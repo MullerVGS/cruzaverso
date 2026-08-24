@@ -22,7 +22,10 @@ export const GAME_BALANCE = {
   objectiveDirectionSolvedWords: 3,
   activeTimeIdleAfterMs: 45_000,
   economy: {
-    initialCredits: 15,
+    // O estipêndio é o único crédito que existe antes da primeira palavra, e é
+    // exatamente ali que o jogador trava: 25 paga duas ajudas em vez de uma,
+    // sem mexer no meio do jogo, onde o crédito já sobra.
+    initialCredits: 25,
     creditsPerLetter: 1,
     captureCreditsPerCell: 0.5,
     captureCreditsCap: 30,

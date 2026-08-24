@@ -101,7 +101,7 @@ describe("estado de uma run", () => {
 
   it("começa com o estipêndio inicial na carteira", () => {
     const state = createInitialGameState(fixture());
-    expect(state.credits).toBe(15);
+    expect(state.credits).toBe(25);
     expect(state.creditsSpent).toBe(0);
   });
 
