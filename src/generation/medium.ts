@@ -1,5 +1,5 @@
 import { BIOMES } from "../content/catalog.js";
-import { GAME_BALANCE, POWERUP_DEFINITIONS } from "../config/game.js";
+import { GAME_BALANCE } from "../config/game.js";
 import { SeededRandom, seedFingerprint } from "./random.js";
 import {
   cellsForWord,
@@ -11,7 +11,6 @@ import {
   type DailyWorld,
   type MapObject,
   type PlacedWord,
-  type PowerupType,
 } from "./types.js";
 
 interface WordGraph {
@@ -38,21 +37,6 @@ interface EvaluatedSection extends CandidateSection {
   objects: MapObject[];
   routes: RouteAnalysis;
   finalScore: number;
-}
-
-const POWERUPS = Object.keys(POWERUP_DEFINITIONS) as PowerupType[];
-
-function pickPowerup(random: SeededRandom): PowerupType {
-  const totalWeight = POWERUPS.reduce(
-    (sum, type) => sum + POWERUP_DEFINITIONS[type].spawnWeight,
-    0,
-  );
-  let cursor = random.float() * totalWeight;
-  for (const type of POWERUPS) {
-    cursor -= POWERUP_DEFINITIONS[type].spawnWeight;
-    if (cursor <= 0) return type;
-  }
-  return POWERUPS.at(-1) as PowerupType;
 }
 
 function buildWordGraph(words: readonly PlacedWord[]): WordGraph {
@@ -243,26 +227,6 @@ function placeObjects(section: CandidateSection, seed: string): MapObject[] {
     ),
   ];
 
-  const occupied = new Set<string>(objects.map((object) => coordinateKey(object.position)));
-  const powerupCount = random.int(
-    GAME_BALANCE.medium.powerups.minInclusive,
-    GAME_BALANCE.medium.powerups.maxExclusive,
-  );
-  const powerupCandidates = random.shuffle(
-    [...distances.entries()]
-      .filter(([key, distance]) => key !== spawnKey && !occupied.has(key) && distance >= 2)
-      .map(([key]) => parseCoordinateKey(key)),
-  );
-  for (let index = 0; index < Math.min(powerupCount, powerupCandidates.length); index += 1) {
-    const position = powerupCandidates[index];
-    if (!position) continue;
-    objects.push({
-      id: `powerup-${index + 1}`,
-      type: "powerup",
-      powerupType: pickPowerup(random),
-      position,
-    });
-  }
   return objects;
 }
 
@@ -413,8 +377,13 @@ export function generateMediumMap(world: DailyWorld): DailyMap {
     words: section.words,
     bounds: boundsForWords(section.words),
     spawn: section.spawn,
+    mode: "daily",
     objects: section.objects,
-    objective: { keysRequired: 2, keysAvailable: 3 },
+    objective: {
+      kind: "keys-and-exit",
+      keysRequired: GAME_BALANCE.medium.keysRequired,
+      keysAvailable: GAME_BALANCE.medium.keysAvailable,
+    },
     report: {
       valid: false,
       words: section.words.length,
