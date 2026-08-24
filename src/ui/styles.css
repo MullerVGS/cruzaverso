@@ -322,6 +322,10 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .explorer-marker circle { fill: #b45645; stroke: #fff3d8; stroke-width: 3; }
 .explorer-marker path { fill: #fff0ce; }
 .map-object { pointer-events: none; stroke-linecap: round; stroke-linejoin: round; }
+/* O explorador e a seta são decoração: deixá-los capturar ponteiro engolia o
+   clique da própria casa em que o explorador está, e com item armado isso vira
+   um clique no alvo destacado que não faz nada. */
+.explorer-marker, .direction-arrow { pointer-events: none; }
 .key-object { fill: none; stroke: #8d6226; stroke-width: 3; }
 .exit-object { fill: rgb(68 91 77 / 12%); stroke: #40594e; stroke-width: 3; }
 .exit-object.is-locked { opacity:.68; stroke:#6d6050; stroke-dasharray:3 2; }.exit-object.is-unlocked { fill:rgb(199 157 78 / 28%); stroke:#986d2e; filter:drop-shadow(0 0 5px rgb(217 175 92 / 65%)); }
