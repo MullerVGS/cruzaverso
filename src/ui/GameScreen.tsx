@@ -19,6 +19,7 @@ import { normalizeGridAnswer } from "../content/catalog.js";
 import { GAME_BALANCE, POWERUP_DEFINITIONS } from "../config/game.js";
 import { sendTelemetry } from "./api.js";
 import { MapView } from "./MapView.js";
+import { SketchFrame } from "./SketchFrame.js";
 import { playSound } from "./sfx.js";
 
 function saveKey(map: DailyMap): string {
@@ -457,7 +458,8 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
           <span className="wordmark-star">✣</span>
           <span><strong>Cruzaverso</strong><small>{map.date.split("-").reverse().join(" · ")}</small></span>
         </button>
-        <div className="objective-strip" aria-label="Objetivo da expedição">
+        <div className="objective-strip has-sketch-frame" aria-label="Objetivo da expedição">
+          <SketchFrame seed="tarja-objetivo" />
           <span className="objective-icon">⌘</span>
           <span><small>OBJETIVO</small><strong>Encontre 2 chaves e alcance a saída</strong></span>
           <b>{Math.min(state.keysCollected, 2)}<i>/2</i></b>
@@ -502,7 +504,8 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
             ))}
           </div>
 
-          <section className="current-clue" aria-live="polite">
+          <section className="current-clue has-sketch-frame" aria-live="polite">
+            <SketchFrame seed={selectedWord?.id ?? "pista"} />
             <span className={`biome-stamp biome-${selectedWord?.biome ?? "cotidiano"}`}>
               {selectedWord?.biome.replace("-", " ") ?? "fronteira"}
             </span>
@@ -602,7 +605,8 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
       ) : null}
 
       {tipVisible && state.status === "playing" ? (
-        <aside className="field-tip">
+        <aside className="field-tip has-sketch-frame">
+          <SketchFrame seed="dica-de-campo" />
           <span>✎</span>
           <p><strong>Primeiro traço</strong>Comece a digitar. Tab troca de palavra e as setas movem o explorador pelos caminhos em tinta.</p>
           <button type="button" onClick={dismissTip} aria-label="Entendi">Entendi</button>
@@ -631,7 +635,8 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
 
       {summaryOpen && state.status === "won" ? (
         <div className="summary-backdrop" role="dialog" aria-modal="true" aria-labelledby="summary-title">
-          <section className="summary-card">
+          <section className="summary-card has-sketch-frame">
+            <SketchFrame seed={map.id} roughness={2.4} />
             <span className="summary-compass">✣</span>
             <p className="eyebrow">EXPEDIÇÃO CONCLUÍDA</p>
             <h1 id="summary-title">O mapa se abriu.</h1>
