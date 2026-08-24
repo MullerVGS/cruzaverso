@@ -46,7 +46,7 @@ export const BIOME_DEFINITIONS: Record<
     label: "Ciência",
     color: "#5583a2",
     symbol: "⌬",
-    description: "Natureza, matéria, vida e descobertas.",
+    description: "Células, matéria, números e descobertas.",
   },
   historia: {
     label: "História",
@@ -59,6 +59,18 @@ export const BIOME_DEFINITIONS: Record<
     color: "#a8616c",
     symbol: "✦",
     description: "Cinema, jogos, quadrinhos e cultura de rede.",
+  },
+  natureza: {
+    label: "Natureza",
+    color: "#4f8068",
+    symbol: "❧",
+    description: "Fauna, flora, paisagens e ciclos do mundo natural.",
+  },
+  brasil: {
+    label: "Brasil",
+    color: "#b08a3f",
+    symbol: "◆",
+    description: "Territórios, culturas e modos de viver brasileiros.",
   },
 };
 
@@ -76,7 +88,7 @@ export const ITEM_DEFINITIONS: Record<
     icon: "A·",
     name: "Letra encontrada",
     description: "Revela uma letra de uma palavra aberta.",
-    // Abaixo da média de 7,3 letras do catálogo, comprar letra passa a se pagar
+    // Abaixo da média de 7,2 letras do catálogo, comprar letra passa a se pagar
     // com o crédito da própria palavra e a loja vira crédito infinito.
     price: 10,
     targeting: "cell",
@@ -93,7 +105,7 @@ export const ITEM_DEFINITIONS: Record<
     name: "Luneta",
     description: "Libera uma rota avistada para ser resolvida, mesmo longe da sua trilha.",
     // O item mais forte da loja: a rota liberada rende as letras dela e ainda
-    // estende a fronteira. Acima da média de 7,3 letras, a compra segue no
+    // estende a fronteira. Acima da média de 7,2 letras, a compra segue no
     // prejuízo direto e não vira torneira de crédito.
     price: 20,
     targeting: "route",

@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit",
     "generate": "tsx scripts/generate-daily.ts",
     "audit:seeds": "tsx scripts/audit-content-seeds.ts",
+    "audit:editorial": "tsx scripts/audit-editorial.ts",
     "validate:content": "tsx scripts/validate-content.ts"
   },
   "dependencies": {

@@ -223,7 +223,7 @@ export function MapView({
     width: width + BLEED * 2 * CELL,
     height: height + BLEED * 2 * CELL,
   };
-  // A legenda anunciava os quatro biomas sempre; o recorte do dia costuma ter
+  // A legenda anunciava todos os biomas sempre; o recorte do dia costuma ter
   // menos. Prometer bioma que não está no mapa é ruído, não informação.
   const presentBiomes = useMemo(() => {
     const present = new Set(map.words.map((word) => word.biome));

@@ -39,6 +39,17 @@ describe("catálogo de conteúdo", () => {
     ]);
     expect(catalog.byBiome.cotidiano).toHaveLength(1);
     expect(catalog.byBiome.ciencia).toHaveLength(1);
+    expect(catalog.findByBiomeLetter("cotidiano", "A").map(({ entry }) => entry.id)).toEqual([
+      "cot-acao",
+    ]);
+    expect(catalog.findByBiomeLetter("ciencia", "A").map(({ entry }) => entry.id)).toEqual([
+      "cie-atomo",
+    ]);
+    expect(catalog.entries[0]?.clueMeta.normal).toEqual({
+      text: "Aquilo que se faz para produzir um resultado.",
+      style: "definition",
+      difficulty: 1,
+    });
   });
 
   it("recusa respostas duplicadas depois da normalização", () => {
@@ -64,5 +75,84 @@ describe("catálogo de conteúdo", () => {
         },
       ]),
     ).toThrow(/resposta duplicada.*ACAO/i);
+  });
+
+  it("preserva metadados editoriais de pistas autorais", () => {
+    const catalog = buildContentCatalog([
+      {
+        id: "cot-botao",
+        answer: "botão",
+        biomes: ["cotidiano"],
+        difficulty: 2,
+        familiarity: 5,
+        clues: {
+          normal: {
+            text: "Fecha a camisa sem usar zíper.",
+            style: "association",
+            difficulty: 2,
+          },
+          simple: {
+            text: "Peça presa à roupa que atravessa uma casa.",
+            style: "definition",
+            difficulty: 1,
+          },
+        },
+        provenance: {
+          source: "teste-editorial",
+          license: "original",
+          references: [
+            {
+              sourceId: "volp",
+              title: "VOLP",
+              url: "https://www.academia.org.br/nossa-lingua/busca-no-vocabulario",
+              license: "consulta",
+              role: "orthographic",
+            },
+          ],
+        },
+      },
+    ]);
+
+    expect(catalog.entries[0]?.clues.normal).toBe("Fecha a camisa sem usar zíper.");
+    expect(catalog.entries[0]?.clueMeta.normal.style).toBe("association");
+    expect(catalog.entries[0]?.provenance.references[0]?.sourceId).toBe("volp");
+  });
+
+  it("recusa pista de jogo de palavras sem a marca de interrogação", () => {
+    expect(() =>
+      buildContentCatalog([
+        {
+          id: "cot-botao",
+          answer: "botão",
+          biomes: ["cotidiano"],
+          difficulty: 2,
+          familiarity: 5,
+          clues: {
+            normal: { text: "Fecha a camisa sem pedir licença", style: "wordplay", difficulty: 2 },
+            simple: { text: "Peça usada para fechar uma roupa.", style: "definition", difficulty: 1 },
+          },
+          provenance: { source: "teste", license: "original" },
+        },
+      ]),
+    ).toThrow(/jogo de palavras sem interrogação/i);
+  });
+
+  it("recusa a mesma redação nas duas pistas", () => {
+    expect(() =>
+      buildContentCatalog([
+        {
+          id: "cot-botao",
+          answer: "botão",
+          biomes: ["cotidiano"],
+          difficulty: 2,
+          familiarity: 5,
+          clues: {
+            normal: "Peça usada para fechar uma roupa.",
+            simple: "Peça usada para fechar uma roupa.",
+          },
+          provenance: { source: "teste", license: "original" },
+        },
+      ]),
+    ).toThrow(/pistas normal e simples repetidas/i);
   });
 });

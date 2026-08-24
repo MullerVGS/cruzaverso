@@ -1,7 +1,7 @@
-import { bundledEntries } from "../../content/entries.js";
+import { bundledEntries } from "../../content/biomes/all.js";
 import { buildContentCatalog, type ContentCatalog } from "./catalog.js";
 
-export const BUNDLED_DATASET_VERSION = "curadoria-v2";
+export const BUNDLED_DATASET_VERSION = "curadoria-v3-1500";
 
 let cachedCatalog: ContentCatalog | undefined;
 

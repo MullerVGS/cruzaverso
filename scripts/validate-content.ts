@@ -14,6 +14,30 @@ const report = {
       catalog.entries.filter((entry) => entry.difficulty === difficulty).length,
     ]),
   ),
+  lengths: Object.fromEntries(
+    Array.from({ length: 16 }, (_, index) => index + 3).map((length) => [
+      length,
+      catalog.entries.filter((entry) => entry.gridAnswer.length === length).length,
+    ]),
+  ),
+  clueStyles: Object.fromEntries(
+    ["definition", "elliptical", "association", "fill-blank", "wordplay", "trivia"].map(
+      (style) => [
+        style,
+        catalog.entries.filter((entry) => entry.clueMeta.normal.style === style).length,
+      ],
+    ),
+  ),
+  references: {
+    entriesWithReferences: catalog.entries.filter(
+      (entry) => entry.provenance.references.length > 0,
+    ).length,
+    uniqueSources: new Set(
+      catalog.entries.flatMap((entry) =>
+        entry.provenance.references.map((reference) => reference.sourceId),
+      ),
+    ).size,
+  },
   provenance: Object.fromEntries(
     provenanceSources.map((source) => [
       source,
