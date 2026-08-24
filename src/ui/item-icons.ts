@@ -22,7 +22,7 @@ export const ITEM_ART: Record<ItemType, string[]> = {
   // Luneta: tubo levemente cônico, inclinado, com dois anéis de corpo.
   // Desenhada na horizontal e com muita abertura, a forma lia como megafone;
   // a inclinação e o afunilamento discreto (1,8:1) é que a fazem ler luneta.
-  "reveal-area": ["M6.5 20.7 3.5 17.3 16.2 2.8l5.6 6.4z", "M14.1 15 9.9 10", "M8.4 19.2 5 15.4"],
+  "unlock-route": ["M6.5 20.7 3.5 17.3 16.2 2.8l5.6 6.4z", "M14.1 15 9.9 10", "M8.4 19.2 5 15.4"],
   // Bússola com agulha.
   "objective-direction": [
     "M12 2.4a9.6 9.6 0 1 0 .01 19.2A9.6 9.6 0 0 0 12 2.4",

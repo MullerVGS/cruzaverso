@@ -36,7 +36,6 @@ interface MapViewProps {
   wordNumbers: Map<string, number>;
   armedTargeting: (typeof ITEM_DEFINITIONS)[ItemType]["targeting"] | null;
   onCellClick: (position: Coordinate, words: PlacedWord[]) => void;
-  onMapClick: (position: Coordinate) => void;
 }
 
 function KeyIcon({ x, y }: Coordinate) {
@@ -79,7 +78,6 @@ export function MapView({
   wordNumbers,
   armedTargeting,
   onCellClick,
-  onMapClick,
 }: MapViewProps) {
   const width = (map.bounds.maxX - map.bounds.minX + 1) * CELL;
   const height = (map.bounds.maxY - map.bounds.minY + 1) * CELL;
@@ -154,7 +152,8 @@ export function MapView({
   }, [availableWordIds, map.words, state]);
   // A mira só destaca quando o alvo é uma casa ou uma palavra; a Luneta aceita
   // qualquer ponto e destacar tudo seria o mesmo que não destacar nada.
-  const aiming = armedTargeting === "cell" || armedTargeting === "word";
+  const aiming =
+    armedTargeting === "cell" || armedTargeting === "word" || armedTargeting === "route";
   // O número mora na casa em que a palavra começa; casa compartilhada por uma
   // vertical e uma horizontal carrega um número só.
   const numberByStartKey = useMemo(() => {
@@ -171,14 +170,23 @@ export function MapView({
     cell,
     aimTarget:
       aiming &&
-      cell.words.some(
-        (word) =>
-          availableWordIds.has(word.id) &&
-          !solved.has(word.id) &&
-          (armedTargeting === "cell"
-            ? !state.ink[key]
-            : !state.simplifiedWordIds.includes(word.id)),
-      ),
+      (armedTargeting === "route"
+        ? // A Luneta mira o contrário das outras: rota já avistada que ainda
+          // não abriu. Só ela é alvo válido.
+          cell.words.some(
+            (word) =>
+              !availableWordIds.has(word.id) &&
+              !solved.has(word.id) &&
+              detailedWordIds.has(word.id),
+          )
+        : cell.words.some(
+            (word) =>
+              availableWordIds.has(word.id) &&
+              !solved.has(word.id) &&
+              (armedTargeting === "cell"
+                ? !state.ink[key]
+                : !state.simplifiedWordIds.includes(word.id)),
+          )),
     hinted: state.hintedCellKeys.includes(key),
     cellSolved: cell.words.some((word) => solved.has(word.id)),
     detailed: cell.words.some((word) => detailedWordIds.has(word.id)),
@@ -262,18 +270,6 @@ export function MapView({
     }, 0);
   }
 
-  /**
-   * A Luneta é mirada: abre a névoa onde o ponteiro está, e não só sobre uma
-   * casa. A matriz de tela do SVG converte o clique já com zoom e pan aplicados.
-   */
-  function handleMapClick(event: ReactMouseEvent<SVGSVGElement>) {
-    if (suppressClick.current || armedTargeting !== "map") return;
-    const matrix = event.currentTarget.getScreenCTM();
-    if (!matrix) return;
-    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
-    onMapClick({ x: Math.floor(point.x / CELL), y: Math.floor(point.y / CELL) });
-  }
-
   function handleWheel(event: WheelEvent<SVGSVGElement>) {
     event.preventDefault();
     zoomBy(event.deltaY < 0 ? 0.25 : -0.25);
@@ -323,7 +319,6 @@ export function MapView({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        onClick={handleMapClick}
         onWheel={handleWheel}
       >
         <defs>
@@ -500,7 +495,7 @@ export function MapView({
                 onClick={() => {
                   // Com a Luneta armada o clique sobe para o SVG, que mira em
                   // qualquer ponto; tratá-lo aqui cobraria o item duas vezes.
-                  if (suppressClick.current || armedTargeting === "map") return;
+                  if (suppressClick.current) return;
                   onCellClick(cell.position, cell.words);
                 }}
                 onKeyDown={(event) => {
@@ -520,7 +515,7 @@ export function MapView({
         </g>
 
         <g className="cell-numbers" aria-hidden="true">
-          {cellViews.map(({ key, cell, detailed }) => {
+          {cellViews.map(({ key, cell, detailed, available, cellSolved }) => {
             const number = numberByStartKey.get(key);
             // Numerar casa na névoa entregaria onde existe palavra por descobrir.
             if (!detailed || number === undefined) return null;
@@ -528,6 +523,9 @@ export function MapView({
               <text
                 key={`numero-${key}`}
                 data-number-key={key}
+                // O número acompanha a rota: enquanto ela não abre, ele recua
+                // junto com a casa em vez de saltar da carta.
+                className={available || cellSolved ? undefined : "is-locked"}
                 x={cell.position.x * CELL + 1}
                 y={cell.position.y * CELL - 3}
               >

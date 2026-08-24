@@ -66,7 +66,7 @@ function freeSeedLabel(map: DailyMap): string {
 const AIM_INSTRUCTION = {
   cell: "clique numa casa vazia de uma palavra aberta",
   word: "clique numa palavra aberta",
-  map: "clique em qualquer ponto do mapa",
+  route: "clique numa rota avistada que ainda não abriu",
   instant: "",
 } as const;
 
@@ -404,9 +404,9 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
    */
   function applyArmedAt(position: Coordinate, words: PlacedWord[]): boolean {
     if (!armed) return false;
-    if (targeting === "map") {
-      // Mirar fora do mapa não descobre nada: o reducer recusa, e a mira fica de
-      // pé para o jogador escolher outro ponto em vez de perder o crédito.
+    if (targeting === "route") {
+      // Mirar onde não há rota bloqueada não cobra: o reducer recusa e a mira
+      // fica de pé para o jogador escolher outra em vez de perder o crédito.
       if (perform({ type: "use-item", item: armed, position })) disarm();
       return true;
     }
@@ -553,7 +553,6 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
           wordNumbers={wordNumbers}
           armedTargeting={targeting}
           onCellClick={handleCellClick}
-          onMapClick={(position) => applyArmedAt(position, [])}
         />
 
         <aside className="clue-desk">

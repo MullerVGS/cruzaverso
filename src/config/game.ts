@@ -17,7 +17,6 @@ export const GAME_BALANCE = {
     initialRadius: 3,
     solvedWordRadius: 2,
     firstSolveRadius: 10,
-    revealAreaRadius: 8,
   },
   objectiveDirectionSolvedWords: 3,
   activeTimeIdleAfterMs: 45_000,
@@ -70,7 +69,7 @@ export const ITEM_DEFINITIONS: Record<
     name: string;
     description: string;
     price: number;
-    targeting: "cell" | "word" | "map" | "instant";
+    targeting: "cell" | "word" | "route" | "instant";
   }
 > = {
   "reveal-letter": {
@@ -89,12 +88,15 @@ export const ITEM_DEFINITIONS: Record<
     price: 14,
     targeting: "word",
   },
-  "reveal-area": {
+  "unlock-route": {
     icon: "◉",
     name: "Luneta",
-    description: "Abre uma área grande onde você escolher.",
-    price: 18,
-    targeting: "map",
+    description: "Libera uma rota avistada para ser resolvida, mesmo longe da sua trilha.",
+    // O item mais forte da loja: a rota liberada rende as letras dela e ainda
+    // estende a fronteira. Acima da média de 7,3 letras, a compra segue no
+    // prejuízo direto e não vira torneira de crédito.
+    price: 20,
+    targeting: "route",
   },
   "objective-direction": {
     icon: "➶",

@@ -15,7 +15,7 @@ import { creditsForCapture, creditsForWord, priceOf } from "./economy.js";
 
 export interface RevealZone extends Coordinate {
   radius: number;
-  source: "initial" | "word" | "tutorial" | "item";
+  source: "initial" | "word" | "tutorial";
 }
 
 export interface GameFeedback {
@@ -34,6 +34,7 @@ export interface GameState {
   ink: Record<string, string>;
   hintedCellKeys: string[];
   solvedWordIds: string[];
+  unlockedWordIds: string[];
   revealZones: RevealZone[];
   capturedCellKeys: string[];
   collectedObjectIds: string[];
@@ -70,6 +71,7 @@ export function createInitialGameState(map: DailyMap): GameState {
     ink: {},
     hintedCellKeys: [],
     solvedWordIds: [],
+    unlockedWordIds: [],
     revealZones: [{ ...map.spawn, radius: GAME_BALANCE.fog.initialRadius, source: "initial" }],
     capturedCellKeys: [],
     collectedObjectIds: [],
@@ -96,6 +98,7 @@ function wordTouchesPosition(word: PlacedWord, position: Coordinate): boolean {
 
 export function availableWords(map: DailyMap, state: GameState): PlacedWord[] {
   const solved = new Set(state.solvedWordIds);
+  const unlocked = new Set(state.unlockedWordIds);
   const solvedCells = new Set(
     map.words
       .filter((word) => solved.has(word.id))
@@ -103,6 +106,9 @@ export function availableWords(map: DailyMap, state: GameState): PlacedWord[] {
   );
   return map.words.filter((word) => {
     if (solved.has(word.id)) return true;
+    // A Luneta abre rota fora da fronteira: uma vez liberada, ela vale como
+    // aberta mesmo sem tocar caminho resolvido.
+    if (unlocked.has(word.id)) return true;
     if (state.solvedWordIds.length === 0) return wordTouchesPosition(word, map.spawn);
     return cellsForWord(word).some((cell) => solvedCells.has(coordinateKey(cell)));
   });
@@ -363,27 +369,36 @@ function useItem(
     itemsUsed: state.itemsUsed + 1,
   };
 
-  if (action.item === "reveal-area") {
+  if (action.item === "unlock-route") {
     if (!action.position) return state;
-    const target = action.position;
-    const radius = GAME_BALANCE.fog.revealAreaRadius;
-    // O atlas é desenhado além dos limites do mapa, então mirar no vazio é fácil.
-    // Um item que não descobre nada não é vendido.
-    const uncovers = map.words.some((word) =>
-      cellsForWord(word).some(
-        (cell) => Math.abs(cell.x - target.x) + Math.abs(cell.y - target.y) <= radius,
-      ),
+    const key = coordinateKey(action.position);
+    const open = new Set(availableWords(map, state).map((word) => word.id));
+    // Só rota já avistada: comprar dentro da névoa cega seria loteria, o jogador
+    // não veria o que está pagando.
+    const targets = map.words.filter(
+      (word) =>
+        !open.has(word.id) &&
+        cellsForWord(word).some((cell) => coordinateKey(cell) === key) &&
+        cellsForWord(word).some((cell) => isCoordinateRevealed(state, cell)),
     );
-    if (!uncovers) {
+    if (targets.length === 0) {
       return {
         ...state,
-        lastFeedback: { kind: "unavailable", message: "Não há nada para revelar aí." },
+        lastFeedback: { kind: "unavailable", message: "Nenhuma rota bloqueada aí." },
       };
     }
     return {
       ...state,
       ...paid,
-      revealZones: [...state.revealZones, { ...target, radius, source: "item" }],
+      unlockedWordIds: [...state.unlockedWordIds, ...targets.map((word) => word.id)],
+      lastFeedback: {
+        kind: "collected",
+        message:
+          targets.length > 1
+            ? "O cruzamento abriu as duas rotas."
+            : "A rota avistada foi liberada.",
+        subjectId: targets[0]?.id,
+      },
     };
   }
 

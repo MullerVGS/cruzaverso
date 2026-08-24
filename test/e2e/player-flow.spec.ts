@@ -69,15 +69,13 @@ test("uma expedição pode sair da primeira pista e chegar à vitória", async (
   const totalLetras = map.words.reduce((sum, word) => sum + word.gridAnswer.length, 0);
   expect(await wallet(page)).toBeGreaterThan(totalLetras);
 
-  // O atlas é desenhado além dos limites do mapa: mirar a luneta no vazio da
-  // borda não pode cobrar, e a mira precisa continuar de pé para o jogador
-  // escolher outro ponto.
+  // Com o mapa inteiro resolvido não sobra rota bloqueada: mirar a Luneta em
+  // qualquer lugar tem que recusar sem cobrar, e a mira continua de pé.
   const saldoAntesDaLuneta = await wallet(page);
-  await page.locator('.shop-slot button[data-item="reveal-area"]').click();
+  await page.locator('.shop-slot button[data-item="unlock-route"]').click();
   await expect(page.locator(".armed-banner")).toBeVisible();
-  const atlas = (await page.locator("svg.atlas").boundingBox())!;
-  await page.mouse.click(atlas.x + 4, atlas.y + atlas.height - 4);
-  await expect(page.getByText("Não há nada para revelar aí.")).toBeVisible();
+  await page.locator(`[data-cell-key="${coordinateKey(map.spawn)}"]`).click();
+  await expect(page.getByText("Nenhuma rota bloqueada aí.")).toBeVisible();
   await expect(page.locator(".armed-banner")).toBeVisible();
   expect(await wallet(page)).toBe(saldoAntesDaLuneta);
   await page.keyboard.press("Escape");
@@ -156,8 +154,8 @@ test("comprar um item cobra só quando ele aplica, e cancelar devolve tudo", asy
   // O estipêndio paga duas ajudas no começo: depois da letra ainda sobra para a
   // pista, mas os itens de exploração ficam fora de alcance, e isso é visível.
   await expect(page.locator('.shop-slot button[data-item="simplify-clue"]')).toBeEnabled();
-  await expect(page.locator('.shop-slot button[data-item="reveal-area"]')).toBeDisabled();
-  await expect(page.locator('.shop-slot button[data-item="reveal-area"]')).toHaveClass(/is-broke/);
+  await expect(page.locator('.shop-slot button[data-item="unlock-route"]')).toBeDisabled();
+  await expect(page.locator('.shop-slot button[data-item="unlock-route"]')).toHaveClass(/is-broke/);
 });
 
 test("a pista extra entra sem apagar a original", async ({ page, request }) => {
@@ -333,6 +331,26 @@ test("o número da lista é o mesmo pintado na casa inicial do mapa", async ({ p
     ).toHaveText(numero as string);
   }
 
+  // O número segue a rota: forte na que dá para abrir, apagado na que ainda
+  // não. Toda entrada da lista é uma rota liberada, então nenhuma pode estar
+  // apagada — e o mapa precisa ter pelo menos uma apagada para haver hierarquia.
+  for (let indice = 0; indice < total; indice += 1) {
+    const wordId = (await entradas.nth(indice).getAttribute("data-word-id")) as string;
+    const casa = coordinateKey(map.words.find((word) => word.id === wordId)!.start);
+    await expect(page.locator(`text[data-number-key="${casa}"]`)).not.toHaveClass(/is-locked/);
+  }
+  expect(await page.locator("text.is-locked").count()).toBeGreaterThan(0);
+
+  // O número segue a rota: forte na que dá para abrir, apagado na que ainda não.
+  // Toda entrada da lista é rota liberada, então nenhuma pode estar apagada — e
+  // o mapa precisa ter ao menos uma apagada para existir hierarquia.
+  for (let indice = 0; indice < total; indice += 1) {
+    const wordId = (await entradas.nth(indice).getAttribute("data-word-id")) as string;
+    const casa = coordinateKey(map.words.find((word) => word.id === wordId)!.start);
+    await expect(page.locator(`text[data-number-key="${casa}"]`)).not.toHaveClass(/is-locked/);
+  }
+  expect(await page.locator("text.is-locked").count()).toBeGreaterThan(0);
+
   // Uma vertical e uma horizontal que partem da mesma casa dividem o número.
   const porCasa = new Map<string, Set<string>>();
   for (let indice = 0; indice < total; indice += 1) {
@@ -346,5 +364,71 @@ test("o número da lista é o mesmo pintado na casa inicial do mapa", async ({ p
 
   if (process.env.CAPTURE_UI === "true") {
     await page.screenshot({ path: testInfo.outputPath("indice-de-rotas.png"), fullPage: true });
+  }
+});
+
+test("a luneta libera uma rota avistada e ela passa a aceitar letras", async ({ page, request }, testInfo) => {
+  const dailyResponse = await request.get("/api/daily");
+  const { map } = (await dailyResponse.json()) as { map: DailyMap };
+  const primeira = map.words.find((word) =>
+    cellsForWord(word).some((cell) => coordinateKey(cell) === coordinateKey(map.spawn)),
+  )!;
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /desbravar|continuar|rever/i }).click();
+
+  // Resolver a primeira palavra abre névoa suficiente para avistar rotas que
+  // ainda não tocam a trilha — o alvo do item.
+  await page.locator(`[data-word-id="${primeira.id}"]`).click();
+  await page.locator("#answer-input").fill(primeira.gridAnswer);
+  await expect(page.getByText("O caminho ganhou tinta.")).toBeVisible();
+
+  // Junta crédito até poder pagar a Luneta.
+  const solved = new Set([primeira.id]);
+  while ((await wallet(page)) < 20) {
+    const proxima = map.words.find(
+      (word) =>
+        !solved.has(word.id) &&
+        cellsForWord(word).some((cell) =>
+          map.words
+            .filter((outra) => solved.has(outra.id))
+            .flatMap((outra) => cellsForWord(outra).map(coordinateKey))
+            .includes(coordinateKey(cell)),
+        ),
+    );
+    expect(proxima).toBeDefined();
+    await page.locator(`[data-word-id="${proxima!.id}"]`).click();
+    await page.locator("#answer-input").fill(proxima!.gridAnswer);
+    await expect(page.getByText("O caminho ganhou tinta.")).toBeVisible();
+    solved.add(proxima!.id);
+  }
+
+  const bloqueadaNaLista = await page.locator(".clue-column button").count();
+  const saldo = await wallet(page);
+
+  await page.locator('.shop-slot button[data-item="unlock-route"]').click();
+  await expect(page.locator(".armed-banner")).toContainText("rota avistada");
+  const alvo = page.locator(".crossword-cell.is-target").first();
+  await expect(alvo).toBeVisible();
+  const chaveAlvo = await alvo.getAttribute("data-cell-key");
+  await alvo.click();
+
+  await expect(page.locator(".armed-banner")).toHaveCount(0);
+  expect(await wallet(page)).toBe(saldo - 20);
+  // A rota liberada entra no índice lateral, que só lista o que dá para resolver.
+  expect(await page.locator(".clue-column button").count()).toBeGreaterThan(bloqueadaNaLista);
+
+  // E ela aceita letra de verdade: escolhe a palavra liberada e resolve.
+  const liberada = map.words.find(
+    (word) =>
+      !solved.has(word.id) &&
+      cellsForWord(word).some((cell) => coordinateKey(cell) === chaveAlvo),
+  )!;
+  await page.locator(`[data-word-id="${liberada.id}"]`).click();
+  await page.locator("#answer-input").fill(liberada.gridAnswer);
+  await expect(page.getByText("O caminho ganhou tinta.")).toBeVisible();
+
+  if (process.env.CAPTURE_UI === "true") {
+    await page.screenshot({ path: testInfo.outputPath("luneta-libera-rota.png"), fullPage: true });
   }
 });
