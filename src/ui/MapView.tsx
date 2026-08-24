@@ -23,6 +23,10 @@ import { POWERUP_ART } from "./powerup-icons.js";
 const CELL = 34;
 /** Células amostradas além do recorte: é o que faz a fronteira continuar do lado de fora. */
 const BLEED = 7;
+/** Traços de hachura de litoral proporcionais ao raio da abertura. */
+function hachureTicks(radius: number): number {
+  return Math.max(9, Math.min(40, Math.round(radius / 11)));
+}
 interface MapViewProps {
   map: DailyMap;
   state: GameState;
@@ -155,6 +159,34 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
     }
     return [...index.entries()];
   }, [map]);
+  // O traço de cada célula e de cada moldura é estável: depende só do mapa.
+  // Sem o memo, digitar uma letra recalcularia ~250 paths tremidos.
+  const cellOutlines = useMemo(() => {
+    const outlines = new Map<string, string>();
+    for (const [key] of cellIndex) {
+      outlines.set(key, sketchRect(0, 0, CELL - 2, CELL - 2, `celula:${key}`, { roughness: .85, step: 14 }));
+    }
+    return outlines;
+  }, [cellIndex]);
+  const wordOutlines = useMemo(() => {
+    const outlines = new Map<string, string>();
+    for (const word of map.words) {
+      const horizontal = word.orientation === "horizontal";
+      const length = word.gridAnswer.length;
+      outlines.set(
+        word.id,
+        sketchRect(
+          word.start.x * CELL - 4,
+          word.start.y * CELL - 4,
+          (horizontal ? length : 1) * CELL + 6,
+          (horizontal ? 1 : length) * CELL + 6,
+          `moldura:${word.id}`,
+          { roughness: 1.3, step: 26 },
+        ),
+      );
+    }
+    return outlines;
+  }, [map.words]);
   const solved = new Set(state.solvedWordIds);
   const collected = new Set(state.collectedObjectIds);
   const detailedWordIds = useMemo(() => {
@@ -299,7 +331,7 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
       >
         <defs>
           <filter id="biome-wash-blur" x="-12%" y="-12%" width="124%" height="124%">
-            <feGaussianBlur stdDeviation={CELL * .85} />
+            <feGaussianBlur stdDeviation={CELL * .55} />
           </filter>
           {Object.entries(BIOME_DEFINITIONS).map(([biome, definition]) => (
             <pattern
@@ -313,14 +345,28 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
               <path d="M0 0v9" stroke={definition.color} strokeWidth="1.1" opacity=".24" />
             </pattern>
           ))}
-          <filter id="fog-grain" x="-10%" y="-10%" width="120%" height="120%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.014 0.019" numOctaves="4" seed="7" result="nuvem" />
+          {/* Ruído fractal é caro por pixel. Confinado a um ladrilho de 256px
+              com stitchTiles, o filtro roda uma vez e o navegador repete o
+              ladrilho; solto sobre o mapa inteiro ele era recalculado a cada
+              quadro de arrasto e travava o pan. */}
+          <filter id="fog-grain" x="0" y="0" width="256" height="256" filterUnits="userSpaceOnUse">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.014 0.019"
+              numOctaves="3"
+              seed="7"
+              stitchTiles="stitch"
+              result="nuvem"
+            />
             <feColorMatrix
               in="nuvem"
               type="matrix"
               values="0 0 0 0 .22  0 0 0 0 .27  0 0 0 0 .25  0 0 0 .55 0"
             />
           </filter>
+          <pattern id="fog-grain-tile" width="256" height="256" patternUnits="userSpaceOnUse">
+            <rect width="256" height="256" filter="url(#fog-grain)" />
+          </pattern>
           <filter id="paper-shadow" x="-30%" y="-30%" width="160%" height="160%">
             <feDropShadow dx="0" dy="2" stdDeviation="2" floodOpacity=".22" />
           </filter>
@@ -365,7 +411,7 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
           <>
             <g className="fog-layer" mask="url(#fog-mask)" aria-hidden="true">
               <rect {...bleedBox} className="fog-wash" />
-              <rect {...bleedBox} className="fog-grain" filter="url(#fog-grain)" />
+              <rect {...bleedBox} className="fog-grain" fill="url(#fog-grain-tile)" />
               <FogChart map={map} cell={CELL} bleed={BLEED} />
             </g>
             <g className="fog-coast" mask="url(#fog-coast-mask)" aria-hidden="true">
@@ -379,8 +425,8 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
                     {/* Hachura curta apontando para fora, como carta antiga
                         marcando o lado desconhecido do litoral. */}
                     <g className="coast-hachure">
-                      {Array.from({ length: 44 }, (_, tick) => {
-                        const angle = (tick / 44) * Math.PI * 2;
+                      {Array.from({ length: hachureTicks(radius) }, (_, tick) => {
+                        const angle = (tick / hachureTicks(radius)) * Math.PI * 2;
                         const inner = radius * .99;
                         const outer = radius * (1.06 + (tick % 3) * .022);
                         return (
@@ -420,10 +466,9 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
 
         <g className="word-frames" aria-hidden="true">
           {map.words.map((word) => {
-            const horizontal = word.orientation === "horizontal";
             const length = word.gridAnswer.length;
             return (
-              <rect
+              <path
                 key={`frame-${word.id}`}
                 data-word-frame={word.id}
                 data-word-length={length}
@@ -434,11 +479,7 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
                   solved.has(word.id) ? "is-solved" : "",
                   selectedWordId === word.id ? "is-selected" : "",
                 ].join(" ")}
-                x={word.start.x * CELL - 4}
-                y={word.start.y * CELL - 4}
-                width={(horizontal ? length : 1) * CELL + 6}
-                height={(horizontal ? 1 : length) * CELL + 6}
-                rx="7"
+                d={wordOutlines.get(word.id)}
               />
             );
           })}
@@ -471,7 +512,7 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
                 role="button"
                 tabIndex={-1}
               >
-                <rect width={CELL - 2} height={CELL - 2} rx="3" />
+                <path d={cellOutlines.get(key)} />
               </g>
             );
           })}
