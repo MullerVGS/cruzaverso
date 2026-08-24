@@ -305,6 +305,7 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 }
 .word-frame.is-solved { stroke: rgb(38 66 57 / 82%); stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; }
 .word-frame.is-selected { stroke: #a36f29; stroke-width: 3.4; stroke-dasharray: none; opacity: 1; filter: drop-shadow(0 2px 3px rgb(67 48 25 / 30%)); }
+.word-frame.is-hovered { stroke: #b4843a; stroke-width: 3; stroke-dasharray: none; opacity: 1; }
 /* Índice de rotas em duas colunas: verticais à esquerda, horizontais à direita.
    O número é o mesmo pintado na casa inicial no mapa, e por isso não é contínuo
    aqui — a numeração é do mapa inteiro, a lista mostra só a fronteira. */
@@ -317,6 +318,8 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .clue-column button:hover { border-color: rgb(233 218 178 / 16%); background: rgb(255 255 255 / 4%); }
 .clue-column button b { width: 21px; height: 21px; display: grid; place-items: center; border-radius: 50%; color: #cab079; background: rgb(196 161 93 / 12%); font-size: .68rem; font-variant-numeric: tabular-nums; }
 .clue-column button span { overflow: hidden; font-size: .74rem; text-overflow: ellipsis; white-space: nowrap; }
+/* Realce de leitura: o hover acende, o clique é que seleciona. */
+.clue-column button.hovered { border-color: #8f7a4c; background: rgb(196 161 93 / 16%); }
 .clue-column button.active { color: #263631; border-color: #c2a56d; background: #e8d8b6; }
 .clue-column button.active b { color: #f7ead0; background: #8c6736; }
 .clue-column button.solved { opacity: .6; }
@@ -340,6 +343,7 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .crossword-cell.is-detailed path { filter: url(#paper-shadow); }
 .crossword-cell.is-available:not(.is-solved) path { fill: rgb(255 251 235 / 98%); stroke: #6f6242; }
 .crossword-cell.is-available:hover path { fill: #fff9e9; stroke: #9a7441; stroke-width: 2; }
+.crossword-cell.is-hovered path { fill: #fdf3d5; stroke: #8f6f3c; stroke-width: 2; }
 .crossword-cell.is-selected path { fill: #fae9b9; stroke: #a67432; stroke-width: 2.3; }
 .crossword-cell.is-active path { fill: #fff7df; stroke: #263e36; stroke-width: 3; }
 .crossword-cell.is-solved path { fill: #f7ecd0; stroke: #344b43; stroke-width: 2; }

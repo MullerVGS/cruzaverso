@@ -5,25 +5,28 @@ import type { ItemType } from "../generation/types.js";
 import { ITEM_ART } from "./item-icons.js";
 
 /**
- * O ponteiro do sistema vira o glifo do item. Desenhar um cursor falso dentro
- * da página atrasa em relação ao ponteiro real e o jogador vê dois.
+ * O ponteiro do sistema vira uma seta comum com o glifo do item ao lado.
+ * Desenhar um cursor falso dentro da página atrasa em relação ao ponteiro real
+ * e o jogador vê dois.
  *
- * O `#` das cores vem escrito como `%23`: cru, ele encerra o data-URI.
+ * As cores vão com `#` literal: escrevê-las já escapadas (`%23`) e passar tudo
+ * por `encodeURIComponent` produz `%2523`, cor inválida que o SVG descarta para
+ * o preto padrão — era isso que deixava o cursor como um disco preto.
  */
 function cursorFor(item: ItemType): string {
-  const paths = ITEM_ART[item].map((path) => `<path d="${path}"/>`).join("");
+  const glifo = ITEM_ART[item].map((path) => `<path d="${path}"/>`).join("");
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="-3 -3 30 30">` +
-    `<circle cx="12" cy="12" r="14" fill="%23faf2dc" stroke="%23293431" stroke-width="1.2"/>` +
-    `<g fill="none" stroke="%23293431" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${paths}</g>` +
-    `</svg>`;
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 15 15, crosshair`;
+    `<svg xmlns="http://www.w3.org/2000/svg" width="38" height="38" viewBox="0 0 38 38">` +
+    `<path d="M2 2 2 20.5 7.1 15.6 10.4 22.6 13.6 21.1 10.3 14.3 16.8 13.7z"` +
+    ` fill="#1b211f" stroke="#faf2dc" stroke-width="1.3" stroke-linejoin="round"/>` +
+    `<g transform="translate(16 14) scale(.76)" fill="none"` +
+    ` stroke-linecap="round" stroke-linejoin="round">` +
+    `<g stroke="#faf2dc" stroke-width="5.5">${glifo}</g>` +
+    `<g stroke="#1b211f" stroke-width="2">${glifo}</g>` +
+    `</g></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 2 2, crosshair`;
 }
 
-/**
- * Armar é estado de interface, nunca de jogo: o crédito só sai da carteira
- * quando o item aplica, então cancelar é reembolso por construção.
- */
 export function useArmedItem() {
   const [armed, setArmed] = useState<ItemType | null>(null);
 
