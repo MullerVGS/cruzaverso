@@ -52,6 +52,8 @@ export interface GenerationReport {
   placedWords: number;
   crossings: number;
   cycles: number;
+  checkedCellRatio: number;
+  crossedLettersPerWord: number;
   score: number;
   errors: string[];
 }
@@ -103,6 +105,8 @@ export interface DailyMapReport {
   words: number;
   crossings: number;
   cycles: number;
+  checkedCellRatio: number;
+  crossedLettersPerWord: number;
   biomes: number;
   score: number;
   routeDiversity: number;
@@ -115,6 +119,8 @@ export interface DailyMapReport {
     spawn: Coordinate;
     words: number;
     cycles: number;
+    checkedCellRatio: number;
+    crossedLettersPerWord: number;
     routeDiversity: number;
     mandatoryWords: number;
     score: number;

@@ -2,6 +2,7 @@ import { BIOMES, type BiomeId, type ContentCatalog, type ContentEntry } from "..
 import { GAME_BALANCE } from "../config/game.js";
 import { biomeFieldSpecFromSeed, createBiomeField, majorityBiome, type BiomeField } from "./biome-field.js";
 import { SeededRandom, seedFingerprint } from "./random.js";
+import { crosswordDensity } from "./density.js";
 import {
   cellsForWord,
   coordinateKey,
@@ -17,6 +18,9 @@ export interface WorldGenerationConfig {
   targetWords: number;
   attempts: number;
   chunkCount: number;
+  anchorScanLimit: number;
+  entriesPerAnchor: number;
+  optionsPerPlacement: number;
 }
 
 export interface GenerateWorldInput {
@@ -26,8 +30,9 @@ export interface GenerateWorldInput {
   config?: Partial<WorldGenerationConfig>;
 }
 
-/** Versão do algoritmo de geração. Bump obriga a regerar artefatos persistidos. */
-export const GENERATOR_VERSION = "2.1.0";
+/** Versão do algoritmo; o bump afeta somente edições ainda não publicadas. */
+export const GENERATOR_VERSION = "3.0.0";
+export const GENERATOR_CONFIG_VERSION = "2.0.0";
 
 const DEFAULT_CONFIG: WorldGenerationConfig = {
   ...GAME_BALANCE.world,
@@ -48,8 +53,15 @@ interface PlacementOption {
   score: number;
 }
 
-function buildBiomeSites(random: SeededRandom): BiomeSite[] {
-  const sites: BiomeSite[] = BIOMES.map((biome, index) => ({
+function greatestCommonDivisor(left: number, right: number): number {
+  let a = left;
+  let b = right;
+  while (b !== 0) [a, b] = [b, a % b];
+  return a;
+}
+
+function buildBiomeSites(random: SeededRandom, biomes: readonly BiomeId[]): BiomeSite[] {
+  const sites: BiomeSite[] = biomes.map((biome, index) => ({
     id: `biome-${index}-${biome}`,
     biome,
     x: random.int(-26, 27),
@@ -57,7 +69,7 @@ function buildBiomeSites(random: SeededRandom): BiomeSite[] {
     radius: random.int(18, 31),
   }));
   for (let index = 0; index < 3; index += 1) {
-    const biome = random.pick(BIOMES);
+    const biome = random.pick(biomes);
     sites.push({
       id: `biome-extra-${index}-${biome}`,
       biome,
@@ -204,48 +216,83 @@ function candidateOptions(
   used: ReadonlySet<string>,
   field: BiomeField,
   targetChunk: WorldChunk,
+  config: Pick<
+    WorldGenerationConfig,
+    "anchorScanLimit" | "entriesPerAnchor" | "optionsPerPlacement"
+  >,
   random: SeededRandom,
 ): PlacementOption[] {
   const cellIndex = indexWords(words);
   const options: PlacementOption[] = [];
+  const evaluatedPlacements = new Set<string>();
 
-  for (const anchor of words) {
+  const anchors = words
+    .flatMap((word) =>
+      cellsForWord(word).map((cell) => ({
+        word,
+        cell,
+        distance: Math.abs(targetChunk.x - cell.x) + Math.abs(targetChunk.y - cell.y),
+      })),
+    )
+    .sort(
+      (left, right) =>
+        left.distance - right.distance ||
+        left.word.id.localeCompare(right.word.id) ||
+        left.cell.index - right.cell.index,
+    )
+    .slice(0, config.anchorScanLimit);
+
+  for (const { word: anchor, cell: anchorCell } of anchors) {
     const orientation: Orientation = anchor.orientation === "horizontal" ? "vertical" : "horizontal";
-    for (const anchorCell of cellsForWord(anchor)) {
-      for (const { entry, positions } of catalog.findByLetter(anchorCell.letter)) {
-        if (used.has(entry.id)) continue;
-        for (const position of positions) {
-          const start = {
-            x: anchorCell.x - (orientation === "horizontal" ? position : 0),
-            y: anchorCell.y - (orientation === "vertical" ? position : 0),
-          };
-          const cells = cellsForWord({ gridAnswer: entry.gridAnswer, orientation, start });
-          const biome = majorityBiome(field, cells);
-          if (!entry.biomes.includes(biome)) continue;
-          const inspected = inspectPlacement(entry, orientation, start, cellIndex);
-          if (!inspected.valid) continue;
+    const anchorBiome = field.biomeAt(anchorCell.x, anchorCell.y);
+    const indexedEntries = catalog.findByBiomeLetter(anchorBiome, anchorCell.letter);
+    const anchorRandom = random.fork(`${anchor.id}:${anchorCell.index}:entries`);
+    const offset = indexedEntries.length === 0 ? 0 : anchorRandom.int(0, indexedEntries.length);
+    let stride = indexedEntries.length <= 1 ? 1 : anchorRandom.int(1, indexedEntries.length);
+    while (indexedEntries.length > 1 && greatestCommonDivisor(stride, indexedEntries.length) !== 1) {
+      stride = (stride + 1) % indexedEntries.length || 1;
+    }
+    const sampledEntries = Array.from(
+      { length: Math.min(config.entriesPerAnchor, indexedEntries.length) },
+      (_, index) => indexedEntries[(offset + index * stride) % indexedEntries.length],
+    ).filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate));
 
-          const middle = {
-            x: start.x + (orientation === "horizontal" ? (entry.gridAnswer.length - 1) / 2 : 0),
-            y: start.y + (orientation === "vertical" ? (entry.gridAnswer.length - 1) / 2 : 0),
-          };
+    for (const { entry, positions } of sampledEntries) {
+      if (used.has(entry.id)) continue;
+      for (const position of positions) {
+        const start = {
+          x: anchorCell.x - (orientation === "horizontal" ? position : 0),
+          y: anchorCell.y - (orientation === "vertical" ? position : 0),
+        };
+        const placementKey = `${entry.id}:${orientation}:${start.x},${start.y}`;
+        if (evaluatedPlacements.has(placementKey)) continue;
+        evaluatedPlacements.add(placementKey);
+        const cells = cellsForWord({ gridAnswer: entry.gridAnswer, orientation, start });
+        const biome = majorityBiome(field, cells);
+        if (!entry.biomes.includes(biome)) continue;
+        const inspected = inspectPlacement(entry, orientation, start, cellIndex);
+        if (!inspected.valid) continue;
 
-          const chunkDistance = Math.abs(targetChunk.x - middle.x) + Math.abs(targetChunk.y - middle.y);
-          const spread = Math.min(18, Math.abs(middle.x) + Math.abs(middle.y));
-          options.push({
-            entry,
-            orientation,
-            start,
-            biome,
-            crossings: inspected.crossings,
-            score: inspected.crossings * 45 - chunkDistance * 0.45 + spread * 0.08 + random.float(),
-          });
-        }
+        const middle = {
+          x: start.x + (orientation === "horizontal" ? (entry.gridAnswer.length - 1) / 2 : 0),
+          y: start.y + (orientation === "vertical" ? (entry.gridAnswer.length - 1) / 2 : 0),
+        };
+
+        const chunkDistance = Math.abs(targetChunk.x - middle.x) + Math.abs(targetChunk.y - middle.y);
+        const spread = Math.min(18, Math.abs(middle.x) + Math.abs(middle.y));
+        options.push({
+          entry,
+          orientation,
+          start,
+          biome,
+          crossings: inspected.crossings,
+          score: inspected.crossings * 70 - chunkDistance * 0.45 + spread * 0.08 + random.float(),
+        });
       }
     }
   }
   options.sort((left, right) => right.score - left.score || left.entry.id.localeCompare(right.entry.id));
-  return options.slice(0, 80);
+  return options.slice(0, config.optionsPerPlacement);
 }
 
 function calculateBounds(words: readonly PlacedWord[]): Bounds {
@@ -258,17 +305,6 @@ function calculateBounds(words: readonly PlacedWord[]): Bounds {
   };
 }
 
-function countCrossings(words: readonly PlacedWord[]): number {
-  const counts = new Map<string, number>();
-  for (const word of words) {
-    for (const cell of cellsForWord(word)) {
-      const key = coordinateKey(cell);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-  }
-  return [...counts.values()].filter((count) => count > 1).length;
-}
-
 function buildAttempt(
   date: string,
   seed: string,
@@ -277,12 +313,24 @@ function buildAttempt(
   config: WorldGenerationConfig,
 ): DailyWorld {
   const random = new SeededRandom(`${seed}:attempt:${attempt}`);
-  const biomeSites = buildBiomeSites(random.fork("biomes"));
+  const availableBiomes = BIOMES.filter((biome) => catalog.byBiome[biome].length > 0);
+  if (availableBiomes.length === 0) throw new Error("Catálogo sem biomas publicáveis");
+  const biomeSites = buildBiomeSites(random.fork("biomes"), availableBiomes);
   const biomeField = biomeFieldSpecFromSeed(`${seed}:attempt:${attempt}:field`);
   const field = createBiomeField(biomeField, biomeSites);
   const chunks = buildChunks(random.fork("chunks"), field, config.chunkCount);
   const originBiome = field.biomeAt(0, 0);
-  const initialEntry = random.pick(catalog.byBiome[originBiome]);
+  const centeredEntries = catalog.byBiome[originBiome].filter((entry) => {
+    const start = { x: -Math.floor(entry.gridAnswer.length / 2), y: 0 };
+    return majorityBiome(
+      field,
+      cellsForWord({ gridAnswer: entry.gridAnswer, orientation: "horizontal", start }),
+    ) === originBiome;
+  });
+  if (centeredEntries.length === 0) {
+    throw new Error(`Bioma ${originBiome} sem resposta central compatível`);
+  }
+  const initialEntry = random.pick(centeredEntries);
   const initialStart = { x: -Math.floor(initialEntry.gridAnswer.length / 2), y: 0 };
   const words: PlacedWord[] = [
     toPlacedWord(initialEntry, 0, "horizontal", initialStart, originBiome),
@@ -290,22 +338,41 @@ function buildAttempt(
   const used = new Set([initialEntry.id]);
 
   for (let index = 1; index < config.targetWords; index += 1) {
-    const targetChunk = chunks[index % chunks.length] as WorldChunk;
-    const options = candidateOptions(catalog, words, used, field, targetChunk, random);
+    const scheduledChunkIndex = index % chunks.length;
+    let options: PlacementOption[] = [];
+    for (let offset = 0; offset < chunks.length && options.length === 0; offset += 1) {
+      const targetChunk = chunks[(scheduledChunkIndex + offset) % chunks.length] as WorldChunk;
+      options = candidateOptions(
+        catalog,
+        words,
+        used,
+        field,
+        targetChunk,
+        config,
+        random.fork(`placement:${index}:${targetChunk.id}`),
+      );
+    }
     if (options.length === 0) break;
-    const option = options[random.int(0, Math.min(5, options.length))] as PlacementOption;
+    const bestCrossingCount = Math.max(...options.map((candidate) => candidate.crossings));
+    const densestOptions = options
+      .filter((candidate) => candidate.crossings === bestCrossingCount)
+      .slice(0, 3);
+    const option = random.pick(densestOptions);
     words.push(toPlacedWord(option.entry, index, option.orientation, option.start, option.biome));
     used.add(option.entry.id);
   }
 
-  const crossings = countCrossings(words);
+  const density = crosswordDensity(words);
+  const crossings = density.crossings;
   const cycles = Math.max(0, crossings - words.length + 1);
   const world: DailyWorld = {
     schemaVersion: 2,
     generatorVersion: GENERATOR_VERSION,
     datasetVersion: catalog.datasetVersion,
-    configVersion: "1.0.0",
-    id: `${date}-g2-${seedFingerprint(`${seed}:${catalog.datasetVersion}`)}`,
+    configVersion: GENERATOR_CONFIG_VERSION,
+    id: `${date}-g2-${seedFingerprint(
+      `${seed}:${catalog.datasetVersion}:${catalog.contentFingerprint}:${GENERATOR_VERSION}:${GENERATOR_CONFIG_VERSION}:${JSON.stringify(config)}`,
+    )}`,
     date,
     seed,
     biomeSites,
@@ -320,7 +387,13 @@ function buildAttempt(
       placedWords: words.length,
       crossings,
       cycles,
-      score: words.length * 10 + cycles * 25 + crossings,
+      checkedCellRatio: density.checkedCellRatio,
+      crossedLettersPerWord: density.crossedLettersPerWord,
+      score:
+        words.length * 10 +
+        cycles * 35 +
+        crossings * 3 +
+        density.checkedCellRatio * 500,
       errors: [],
     },
     candidateReports: [],
@@ -345,13 +418,13 @@ export function generateDailyWorld(input: GenerateWorldInput): DailyWorld {
   return best;
 }
 
-export function validateWorld(world: DailyWorld): string[] {
+export function validateCrosswordLayout(words: readonly PlacedWord[]): string[] {
   const errors: string[] = [];
-  if (world.words.length === 0) return ["Mundo sem palavras"];
+  if (words.length === 0) return ["Crossword sem palavras"];
 
   const entryIds = new Set<string>();
   const cells = new Map<string, Array<{ word: PlacedWord; letter: string }>>();
-  for (const word of world.words) {
+  for (const word of words) {
     if (entryIds.has(word.entryId)) errors.push(`Resposta repetida: ${word.entryId}`);
     entryIds.add(word.entryId);
     for (const cell of cellsForWord(word)) {
@@ -362,7 +435,7 @@ export function validateWorld(world: DailyWorld): string[] {
     }
   }
 
-  const adjacency = new Map(world.words.map((word) => [word.id, new Set<string>()]));
+  const adjacency = new Map(words.map((word) => [word.id, new Set<string>()]));
   for (const [key, occupying] of cells) {
     if (new Set(occupying.map((item) => item.letter)).size > 1) {
       errors.push(`Letras incompatíveis em ${key}`);
@@ -380,14 +453,73 @@ export function validateWorld(world: DailyWorld): string[] {
     }
   }
 
+  for (const word of words) {
+    const wordCells = cellsForWord(word);
+    for (const cell of wordCells) {
+      const currentWordIds = new Set(
+        (cells.get(coordinateKey(cell)) ?? []).map((occupying) => occupying.word.id),
+      );
+      const sideNeighbors =
+        word.orientation === "horizontal"
+          ? [
+              { x: cell.x, y: cell.y - 1 },
+              { x: cell.x, y: cell.y + 1 },
+            ]
+          : [
+              { x: cell.x - 1, y: cell.y },
+              { x: cell.x + 1, y: cell.y },
+            ];
+      if (
+        sideNeighbors.some((neighbor) => {
+          const neighborOccupants = cells.get(coordinateKey(neighbor)) ?? [];
+          return (
+            neighborOccupants.length > 0 &&
+            !neighborOccupants.some((occupying) => currentWordIds.has(occupying.word.id))
+          );
+        })
+      ) {
+        errors.push(`Palavra ${word.id} encosta lateralmente em outra palavra`);
+        break;
+      }
+    }
+
+    const before = {
+      x: word.start.x - (word.orientation === "horizontal" ? 1 : 0),
+      y: word.start.y - (word.orientation === "vertical" ? 1 : 0),
+    };
+    const after = {
+      x: word.start.x + (word.orientation === "horizontal" ? word.gridAnswer.length : 0),
+      y: word.start.y + (word.orientation === "vertical" ? word.gridAnswer.length : 0),
+    };
+    if (cells.has(coordinateKey(before)) || cells.has(coordinateKey(after))) {
+      errors.push(`Palavra ${word.id} encosta pela ponta em outra palavra`);
+    }
+  }
+
   const visited = new Set<string>();
-  const pending = [world.words[0]?.id].filter((id): id is string => Boolean(id));
+  const pending = [words[0]?.id].filter((id): id is string => Boolean(id));
   while (pending.length > 0) {
     const id = pending.pop() as string;
     if (visited.has(id)) continue;
     visited.add(id);
     for (const neighbor of adjacency.get(id) ?? []) pending.push(neighbor);
   }
-  if (visited.size !== world.words.length) errors.push("Crossword global desconectada");
+  if (visited.size !== words.length) errors.push("Crossword desconectada");
+  return errors;
+}
+
+export function validateWorld(world: DailyWorld): string[] {
+  if (world.words.length === 0) return ["Mundo sem palavras"];
+  const errors = validateCrosswordLayout(world.words);
+  // O helper de layout também é usado por fixtures unitárias mínimas, que não
+  // carregam campo de biomas. Artefatos reais sempre entram neste ramo.
+  if (world.biomeField && world.biomeSites?.length > 0) {
+    const field = createBiomeField(world.biomeField, world.biomeSites);
+    for (const word of world.words) {
+      if (word.biome !== majorityBiome(field, cellsForWord(word))) {
+        errors.push(`Bioma incorreto na palavra ${word.id}`);
+      }
+    }
+  }
   return errors;
 }

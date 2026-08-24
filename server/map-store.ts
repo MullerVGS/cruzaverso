@@ -6,7 +6,11 @@ import { loadBundledCatalog } from "../src/content/bundled.js";
 import { GAME_BALANCE } from "../src/config/game.js";
 import { generateMediumMap } from "../src/generation/medium.js";
 import type { DailyMap, DailyWorld } from "../src/generation/types.js";
-import { GENERATOR_VERSION, generateDailyWorld } from "../src/generation/world.js";
+import {
+  GENERATOR_CONFIG_VERSION,
+  GENERATOR_VERSION,
+  generateDailyWorld,
+} from "../src/generation/world.js";
 
 export interface ArchiveEntry {
   date: string;
@@ -50,7 +54,7 @@ export interface TelemetryEvent {
 export class MapStore {
   readonly databasePath: string;
   private readonly database: Database.Database;
-  /** Versão do catálogo embarcado nesta build; ver `get`. */
+  /** Versão do catálogo embarcado nesta build; invalida apenas mapas livres. */
   private readonly datasetVersion: string;
 
   constructor(dataDirectory: string) {
@@ -95,22 +99,35 @@ export class MapStore {
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    this.ensureColumn(
+      "daily_artifacts",
+      "config_version",
+      "TEXT NOT NULL DEFAULT 'legacy'",
+    );
+    this.ensureColumn(
+      "daily_artifacts",
+      "resolved_config_json",
+      "TEXT NOT NULL DEFAULT '{}'",
+    );
+    this.ensureColumn("free_maps", "config_version", "TEXT NOT NULL DEFAULT 'legacy'");
+  }
+
+  private ensureColumn(table: string, column: string, declaration: string): void {
+    const columns = this.database.prepare(`PRAGMA table_info(${table})`).all() as Array<{
+      name: string;
+    }>;
+    if (columns.some((candidate) => candidate.name === column)) return;
+    // Os três argumentos são constantes internas, nunca entrada do usuário.
+    this.database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${declaration}`);
   }
 
   get(date: string): DailyArtifact | null {
     const row = this.database
       .prepare(
-        "SELECT world_json, map_json, generator_version, dataset_version FROM daily_artifacts WHERE date = ?",
+        `SELECT world_json, map_json FROM daily_artifacts WHERE date = ?`,
       )
-      .get(date) as (ArtifactRow & { generator_version: string; dataset_version: string }) | undefined;
+      .get(date) as ArtifactRow | undefined;
     if (!row) return null;
-    // Artefato de um gerador anterior não é servível: o cliente atual espera
-    // campos que ele não tem. A regra do projeto é que mudança de algoritmo
-    // exige incremento de versão — é esse incremento que autoriza reger.
-    // O dataset conta pelo mesmo motivo: catálogo diferente é outro
-    // quebra-cabeça, e servir o antigo esconderia a curadoria nova.
-    if (row.generator_version !== GENERATOR_VERSION) return null;
-    if (row.dataset_version !== this.datasetVersion) return null;
     return {
       world: JSON.parse(row.world_json) as DailyWorld,
       map: JSON.parse(row.map_json) as DailyMap,
@@ -128,7 +145,7 @@ export class MapStore {
     }
     this.database
       .prepare(
-        `INSERT OR REPLACE INTO daily_artifacts
+        `INSERT INTO daily_artifacts
           (date, world_id, map_id, generator_version, dataset_version, config_version,
            resolved_config_json, world_json, map_json)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -147,18 +164,9 @@ export class MapStore {
     return this.get(date) ?? { world, map };
   }
 
-  /**
-   * Uma edição já publicada continua jogável depois de um bump de versão: se a
-   * linha existe mas o artefato é de um gerador anterior, ela é regerada. Sem
-   * isso o arquivo nasce vazio a cada bump. A trava contra espiar o futuro é a
-   * existência da linha — data nunca publicada não gera nada.
-   */
+  /** O arquivo só lê edições publicadas; nunca materializa nem substitui uma data. */
   getDaily(date: string): DailyArtifact | null {
-    const published = this.database
-      .prepare("SELECT 1 FROM daily_artifacts WHERE date = ?")
-      .get(date);
-    if (!published) return null;
-    return this.getOrCreateDaily(date);
+    return this.get(date);
   }
 
   listDaily(limit: number, today: string): ArchiveEntry[] {
@@ -184,9 +192,11 @@ export class MapStore {
     const row = this.database
       .prepare(
         `SELECT world_json, map_json FROM free_maps
-         WHERE seed = ? AND generator_version = ? AND dataset_version = ?`,
+         WHERE seed = ? AND generator_version = ? AND dataset_version = ? AND config_version = ?`,
       )
-      .get(seed, GENERATOR_VERSION, this.datasetVersion) as ArtifactRow | undefined;
+      .get(seed, GENERATOR_VERSION, this.datasetVersion, GENERATOR_CONFIG_VERSION) as
+      | ArtifactRow
+      | undefined;
     if (!row) return null;
     return {
       world: JSON.parse(row.world_json) as DailyWorld,

@@ -23,6 +23,7 @@ describe("lote crítico de seeds diárias", () => {
 
       expect(validateWorld(world)).toEqual([]);
       expect(world.report.valid).toBe(true);
+      expect(world.words).toHaveLength(GAME_BALANCE.world.targetWords);
       expect(validateMediumMap(map)).toEqual([]);
       expect(map.report.valid).toBe(true);
       expect(map.report.cycles).toBeGreaterThan(0);

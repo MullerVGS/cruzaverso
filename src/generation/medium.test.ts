@@ -40,10 +40,12 @@ describe("extração Medium", () => {
   });
   it("repassa o campo de biomas e versiona o artefato do mapa", () => {
     const map = generateMediumMap(world);
+    const outraConfiguracao = generateMediumMap({ ...world, configVersion: "outra-configuracao" });
 
     expect(map.schemaVersion).toBe(2);
     expect(map.biomeField).toEqual(world.biomeField);
     expect(map.id).toContain("-m2-");
+    expect(outraConfiguracao.id).not.toBe(map.id);
   });
 
   it("não premia seções por quantidade de biomas", () => {
@@ -81,6 +83,7 @@ describe("extração Medium", () => {
     const free = generateMediumMap(world, { mode: "free" });
     expect(free.spawn).toEqual(daily.spawn);
     expect(free.words.map((word) => word.id)).toEqual(daily.words.map((word) => word.id));
+    expect(free.id).not.toBe(daily.id);
   });
 
   it("toda moeda vale o mesmo e cai num caminho", () => {
@@ -91,4 +94,15 @@ describe("extração Medium", () => {
       expect(cells.has(coordinateKey(object.position))).toBe(true);
     }
   });
+
+  it("não publica recorte que perde o corredor entre palavras paralelas", () => {
+    const regressionWorld = generateDailyWorld({
+      date: "2026-02-09",
+      catalog: loadBundledCatalog(),
+    });
+    const map = generateMediumMap(regressionWorld);
+
+    expect(validateMediumMap(map)).toEqual([]);
+    expect(map.report.valid).toBe(true);
+  }, 10_000);
 });
