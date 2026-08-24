@@ -319,6 +319,21 @@ function finishIfExit(map: DailyMap, state: GameState, positionKey: string): Gam
   };
 }
 
+/**
+ * As casas entre o explorador e o destino, sem a casa de origem. `null` quando
+ * não existe caminho em tinta; lista vazia quando ele já está lá. É o que a
+ * interface usa para caminhar casa a casa e para pré-visualizar a rota.
+ */
+export function routeTo(
+  map: DailyMap,
+  state: GameState,
+  destination: Coordinate,
+): Coordinate[] | null {
+  const path = findPath(solvedCellGraph(map, state), state.player, destination);
+  if (!path) return null;
+  return path.slice(1).map(parseCoordinateKey);
+}
+
 function move(map: DailyMap, state: GameState, destination: Coordinate): GameState {
   const path = findPath(solvedCellGraph(map, state), state.player, destination);
   if (!path) {
@@ -327,8 +342,11 @@ function move(map: DailyMap, state: GameState, destination: Coordinate): GameSta
       lastFeedback: { kind: "blocked", message: "Resolva um caminho até lá primeiro." },
     };
   }
+  if (path.length <= 1) return state;
 
-  let next = state;
+  // Andar apaga o recado anterior. Sem isto, um "resolva um caminho até lá
+  // primeiro" continuava na tela enquanto o explorador atravessava o mapa.
+  let next: GameState = state.lastFeedback ? { ...state, lastFeedback: null } : state;
   for (const key of path.slice(1)) {
     const player = parseCoordinateKey(key);
     next = { ...next, player, path: [...next.path, player] };

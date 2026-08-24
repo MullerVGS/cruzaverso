@@ -9,6 +9,7 @@ import {
   availableWords,
   createInitialGameState,
   isCoordinateRevealed,
+  routeTo,
   type GameState,
 } from "./state.js";
 
@@ -243,5 +244,54 @@ describe("estado de uma run", () => {
 
     expect(state.solvedWordIds).toContain(avistada.id);
     expect(state.credits).toBe(saldo + avistada.gridAnswer.length);
+  });
+});
+
+describe("rota do explorador", () => {
+  it("devolve as casas do corredor, sem a de origem, e nada quando ele já está lá", () => {
+    const map = fixture();
+    const primeira = availableWords(map, createInitialGameState(map))[0]!;
+    const state = fillAndSubmit(map, createInitialGameState(map), primeira.id);
+    const cells = cellsForWord(primeira);
+    const destino = cells[cells.length - 1]!;
+
+    const rota = routeTo(map, state, destino);
+    expect(rota).not.toBeNull();
+    expect(rota!.map(coordinateKey)).not.toContain(coordinateKey(state.player));
+    expect(coordinateKey(rota!.at(-1)!)).toBe(coordinateKey(destino));
+    // Cada passo é vizinho do anterior: é isso que faz a caminhada seguir o
+    // corredor em vez de cortar caminho pela névoa.
+    let anterior = state.player;
+    for (const passo of rota!) {
+      expect(Math.abs(passo.x - anterior.x) + Math.abs(passo.y - anterior.y)).toBe(1);
+      anterior = passo;
+    }
+    expect(routeTo(map, state, state.player)).toEqual([]);
+  });
+
+  it("não devolve rota para onde não há caminho em tinta", () => {
+    const map = fixture();
+    const state = createInitialGameState(map);
+    const longe = { x: map.bounds.maxX + 5, y: map.bounds.maxY + 5 };
+    expect(routeTo(map, state, longe)).toBeNull();
+  });
+
+  it("andar apaga o recado anterior e não mexe em nada quando o destino é a casa atual", () => {
+    const map = fixture();
+    const primeira = availableWords(map, createInitialGameState(map))[0]!;
+    const aberto = fillAndSubmit(map, createInitialGameState(map), primeira.id);
+    const bloqueado = applyGameAction(map, aberto, {
+      type: "move",
+      destination: { x: map.bounds.maxX + 5, y: map.bounds.maxY + 5 },
+    });
+    expect(bloqueado.lastFeedback?.kind).toBe("blocked");
+
+    const cells = cellsForWord(primeira);
+    const andou = applyGameAction(map, bloqueado, { type: "move", destination: cells.at(-1)! });
+    expect(andou.lastFeedback).toBeNull();
+
+    // Sem passo não há estado novo: é o que deixa o clique na própria casa
+    // livre para virar troca de foco em vez de movimento.
+    expect(applyGameAction(map, andou, { type: "move", destination: andou.player })).toBe(andou);
   });
 });

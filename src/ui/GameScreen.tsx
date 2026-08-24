@@ -4,9 +4,19 @@ import {
   applyGameAction,
   availableWords,
   createInitialGameState,
+  routeTo,
   type GameAction,
   type GameState,
 } from "../game/state.js";
+import {
+  chooseNeedle,
+  equipCompass,
+  parseExplorerKit,
+  serializeExplorerKit,
+  unlockCompass,
+  unlocksCompass,
+  type ExplorerKit,
+} from "../game/explorer-kit.js";
 import { numberWords } from "../game/numbering.js";
 import { entryIndexForWord, eraseAt, typeAt } from "../game/typing.js";
 import {
@@ -17,7 +27,7 @@ import {
   type PlacedWord,
 } from "../generation/types.js";
 import { normalizeGridAnswer } from "../content/catalog.js";
-import { GAME_BALANCE, ITEM_DEFINITIONS } from "../config/game.js";
+import { EXPLORER, GAME_BALANCE, ITEM_DEFINITIONS, type NeedleId } from "../config/game.js";
 import { sendTelemetry } from "./api.js";
 import { ClueDesk } from "./ClueDesk.js";
 import { ItemGlyph } from "./ItemGlyph.js";
@@ -31,12 +41,21 @@ function saveKey(map: DailyMap): string {
   return `cruzaverso:save:${map.id}`;
 }
 
+/** O único estado que atravessa expedições, e é só cosmético. */
+const KIT_KEY = "cruzaverso:kit";
+
+/** Quanto tempo um recado fica na tela antes de sair sozinho. */
+const FEEDBACK_MS = 2_600;
+
 function loadSavedState(map: DailyMap): GameState | null {
   try {
     const raw = localStorage.getItem(saveKey(map));
     if (!raw) return null;
     const state = JSON.parse(raw) as GameState;
-    return state.schemaVersion === 2 && state.mapId === map.id ? state : null;
+    if (state.schemaVersion !== 2 || state.mapId !== map.id) return null;
+    // O recado é do momento em que foi dado. Retomar a run amanhã não deve
+    // reabrir o aviso de um movimento bloqueado da sessão passada.
+    return { ...state, lastFeedback: null };
   } catch {
     return null;
   }
@@ -98,6 +117,9 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   const [tipVisible, setTipVisible] = useState(
     () => localStorage.getItem("cruzaverso:tutorial-seen") !== "yes",
   );
+  const [kit, setKit] = useState<ExplorerKit>(() => parseExplorerKit(localStorage.getItem(KIT_KEY)));
+  const [compassJustUnlocked, setCompassJustUnlocked] = useState(false);
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
   const { armed, arm, disarm, targeting } = useArmedItem();
   const runId = useMemo(() => getRunId(map), [map]);
   const startedTelemetry = useRef(false);
@@ -105,6 +127,16 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   const activeCellIndexRef = useRef(0);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const kitRef = useRef(kit);
+  kitRef.current = kit;
+  // A caminhada é da interface, não do jogo: o reducer segue recebendo um passo
+  // de cada vez, e é a fila que faz o explorador percorrer o corredor em vez de
+  // aparecer do outro lado do mapa.
+  const walk = useRef<{ queue: Coordinate[]; timer: number | null; stepMs: number }>({
+    queue: [],
+    timer: null,
+    stepMs: EXPLORER.walkStepMs,
+  });
   const soundLevel = soundsEnabled ? soundVolume : 0;
 
   const wordNumbers = useMemo(() => numberWords(map.words), [map]);
@@ -132,23 +164,30 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   }, [selectedWordId]);
 
   const playerKey = coordinateKey(state.player);
-  // Chegar andando numa casa muda o foco de pista. A dependência é só a posição
-  // de propósito: qualquer outra mudança de estado não deve roubar o foco.
+  // Chegar numa casa muda o foco de pista. A dependência é só a posição de
+  // propósito: qualquer outra mudança de estado não deve roubar o foco.
   useEffect(() => {
-    const here = wordsAvailable.filter(
-      (word) =>
-        !state.solvedWordIds.includes(word.id) &&
-        cellsForWord(word).some((cell) => coordinateKey(cell) === playerKey),
-    );
-    if (here.length === 0) return;
-    const previous = map.words.find((word) => word.id === selectedWordId);
-    const sameOrientation = here.find((word) => word.orientation === previous?.orientation);
-    setSelectedWordId((sameOrientation ?? here[0])!.id);
+    // No meio de uma rota o explorador atravessa casas que ele não está
+    // visitando. Só a chegada foca — senão a pista pisca o caminho inteiro.
+    if (walk.current.queue.length > 0) return;
+    setSelectedWordId(focusAt(state.player) ?? selectedWordId);
   }, [playerKey]);
 
   useEffect(() => {
     localStorage.setItem(saveKey(map), JSON.stringify(state));
   }, [map, state]);
+
+  // O recado é um aviso, não um letreiro: some sozinho. Antes ele ficava até a
+  // próxima ação que escrevesse outro, e um "resolva um caminho até lá" seguia
+  // na tela enquanto o explorador já atravessava o mapa.
+  useEffect(() => {
+    if (!state.lastFeedback) return;
+    setFeedbackVisible(true);
+    const timer = window.setTimeout(() => setFeedbackVisible(false), FEEDBACK_MS);
+    return () => window.clearTimeout(timer);
+  }, [state.lastFeedback]);
+
+  useEffect(() => stopWalk, []);
 
   useEffect(() => {
     if (startedTelemetry.current) return;
@@ -201,6 +240,8 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
       }[event.key];
       if (movement && !event.shiftKey) {
         event.preventDefault();
+        // Uma seta cancela a rota em curso: quem pega o leme quer o leme.
+        stopWalk();
         perform({
           type: "move",
           destination: {
@@ -306,6 +347,10 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
     if (next.status === "won" && previous.status !== "won") {
       playSound("victory", soundLevel);
       setSummaryOpen(true);
+      if (unlocksCompass(map.mode, next.status) && !kitRef.current.compassUnlocked) {
+        updateKit(unlockCompass(kitRef.current));
+        setCompassJustUnlocked(true);
+      }
     } else if (next.keysCollected > previous.keysCollected || next.collectedObjectIds.length > previous.collectedObjectIds.length) {
       playSound("collect", soundLevel);
     } else if (next.solvedWordIds.length > previous.solvedWordIds.length) {
@@ -320,6 +365,84 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   function commitState(next: GameState) {
     stateRef.current = next;
     setState(next);
+  }
+
+  function stopWalk() {
+    if (walk.current.timer !== null) window.clearTimeout(walk.current.timer);
+    walk.current = { queue: [], timer: null, stepMs: EXPLORER.walkStepMs };
+  }
+
+  function stepWalk() {
+    const next = walk.current.queue.shift();
+    if (!next) {
+      walk.current.timer = null;
+      return;
+    }
+    perform({ type: "move", destination: next });
+    if (stateRef.current.status === "won" || walk.current.queue.length === 0) {
+      walk.current.timer = null;
+      return;
+    }
+    walk.current.timer = window.setTimeout(stepWalk, walk.current.stepMs);
+  }
+
+  /** Manda o explorador até uma casa percorrendo o corredor, casa por casa. */
+  function walkTo(destination: Coordinate) {
+    stopWalk();
+    const route = routeTo(map, stateRef.current, destination);
+    // Sem rota o reducer é quem recusa: é dele o recado, e ele conhece o motivo.
+    if (!route) {
+      perform({ type: "move", destination });
+      return;
+    }
+    if (route.length === 0) return;
+    walk.current.queue = route;
+    walk.current.stepMs = Math.max(
+      EXPLORER.walkStepMinMs,
+      Math.min(EXPLORER.walkStepMs, EXPLORER.walkRouteMs / route.length),
+    );
+    stepWalk();
+  }
+
+  /**
+   * As palavras que passam por uma casa, na ordem em que o foco as prefere:
+   * primeiro as abertas por resolver, depois as demais — inclusive as que já
+   * estão em tinta, que também merecem ser lidas quando o explorador as visita.
+   */
+  function wordsAt(position: Coordinate) {
+    const key = coordinateKey(position);
+    const here = map.words.filter((word) =>
+      cellsForWord(word).some((cell) => coordinateKey(cell) === key),
+    );
+    const open = here.filter(
+      (word) => availableIds.has(word.id) && !stateRef.current.solvedWordIds.includes(word.id),
+    );
+    return { open, ordered: [...open, ...here.filter((word) => !open.includes(word))] };
+  }
+
+  /** Qual palavra acender ao chegar numa casa; mantém a orientação quando dá. */
+  function focusAt(position: Coordinate): string | null {
+    const { open, ordered } = wordsAt(position);
+    if (ordered.length === 0) return null;
+    const previous = map.words.find((word) => word.id === selectedWordId);
+    const pool = open.length > 0 ? open : ordered;
+    return (pool.find((word) => word.orientation === previous?.orientation) ?? pool[0]!).id;
+  }
+
+  function focusWordAt(wordId: string, position: Coordinate) {
+    setSelectedWordId(wordId);
+    const word = map.words.find((candidate) => candidate.id === wordId);
+    if (!word || stateRef.current.solvedWordIds.includes(wordId)) return;
+    const index = cellsForWord(word).findIndex(
+      (cell) => coordinateKey(cell) === coordinateKey(position),
+    );
+    if (index >= 0 && !stateRef.current.ink[coordinateKey(position)]) setEntryCell(index);
+  }
+
+  function updateKit(next: ExplorerKit) {
+    kitRef.current = next;
+    setKit(next);
+    localStorage.setItem(KIT_KEY, serializeExplorerKit(next));
   }
 
   function setEntryCell(index: number) {
@@ -438,30 +561,37 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
 
   function handleCellClick(position: Coordinate, words: PlacedWord[]) {
     if (applyArmedAt(position, words)) return;
+
+    // Clicar na casa onde ele já está alterna entre as palavras que passam por
+    // ali. Num cruzamento é a única forma de trocar de rumo sem sair do lugar.
+    if (coordinateKey(position) === coordinateKey(stateRef.current.player)) {
+      const { ordered } = wordsAt(position);
+      if (ordered.length === 0) return;
+      const index = ordered.findIndex((word) => word.id === selectedWordId);
+      focusWordAt((ordered[(index + 1) % ordered.length] ?? ordered[0]!).id, position);
+      return;
+    }
+
+    const solvedHere = words.some((word) => state.solvedWordIds.includes(word.id));
+    if (solvedHere) {
+      walkTo(position);
+      return;
+    }
+
     const candidates = words.filter(
       (word) => availableIds.has(word.id) && !state.solvedWordIds.includes(word.id),
     );
-    const solvedHere = words.some((word) => state.solvedWordIds.includes(word.id));
-    if (solvedHere) {
-      perform({ type: "move", destination: position });
-      return;
-    }
     if (candidates.length === 0) return;
     const currentIndex = candidates.findIndex((word) => word.id === selectedWordId);
     const next = candidates[(currentIndex + 1) % candidates.length] ?? candidates[0];
-    if (next) {
-      setSelectedWordId(next.id);
-      const cellIndex = cellsForWord(next).findIndex(
-        (cell) => coordinateKey(cell) === coordinateKey(position),
-      );
-      if (cellIndex >= 0 && !state.ink[coordinateKey(position)]) setEntryCell(cellIndex);
-    }
+    if (next) focusWordAt(next.id, position);
   }
 
   function resetDraft() {
     if (state.status === "won") return;
     const subject = map.mode === "daily" ? "a expedição de hoje" : "esta expedição livre";
     if (!window.confirm(`Apagar todos os traços e recomeçar ${subject}?`)) return;
+    stopWalk();
     const fresh = createInitialGameState(map);
     commitState(fresh);
     setSelectedWordId(null);
@@ -550,6 +680,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
         <MapView
           map={map}
           state={state}
+          kit={kit}
           selectedWordId={selectedWordId}
           activeCellKey={activeCellKey}
           availableWordIds={availableIds}
@@ -587,7 +718,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
         </aside>
       </section>
 
-      {state.lastFeedback ? (
+      {state.lastFeedback && feedbackVisible ? (
         <div className={`feedback-toast ${state.lastFeedback.kind}`} role="status">
           {state.lastFeedback.message}
         </div>
@@ -617,6 +748,43 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
       {settingsOpen ? (
         <aside className="settings-popover">
           <h2>Ajustes da expedição</h2>
+          <section className="kit-panel">
+            <h3>Instrumento</h3>
+            {kit.compassUnlocked ? (
+              <>
+                <label>
+                  <span>Equipar a bússola</span>
+                  <input
+                    type="checkbox"
+                    checked={kit.compassEquipped}
+                    onChange={(event) => updateKit(equipCompass(kit, event.target.checked))}
+                  />
+                </label>
+                <div className="needle-picker" role="radiogroup" aria-label="Agulha da bússola">
+                  {EXPLORER.needles.map((needle) => (
+                    <button
+                      key={needle.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={kit.needle === needle.id}
+                      className={kit.needle === needle.id ? "is-chosen" : ""}
+                      disabled={!kit.compassEquipped}
+                      title={needle.description}
+                      onClick={() => updateKit(chooseNeedle(kit, needle.id as NeedleId))}
+                    >
+                      <img src={needle.asset} alt="" />
+                      <span>{needle.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="kit-locked">
+                A bússola do explorador é uma conquista: conclua uma expedição diária e ela chega
+                com as três agulhas.
+              </p>
+            )}
+          </section>
           <label><span>Sons sutis</span><input type="checkbox" checked={soundsEnabled} onChange={(event) => {
             const enabled = event.target.checked;
             setSoundsEnabled(enabled);
@@ -652,6 +820,15 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
               <span><b>{state.hintedCellKeys.length}</b> letras compradas</span>
               <span><b>{state.creditsEarned}</b> créditos ganhos</span>
             </div>
+            {compassJustUnlocked ? (
+              <p className="summary-achievement">
+                <img src={EXPLORER.compass.housing} alt="" />
+                <span>
+                  <b>Bússola do explorador</b>
+                  O instrumento é seu, com três agulhas. Troque a que preferir nos ajustes.
+                </span>
+              </p>
+            ) : null}
             <button type="button" onClick={() => setSummaryOpen(false)}>Revelar atlas completo</button>
             <small>Uma nova expedição nasce amanhã, no horário de São Paulo.</small>
           </section>

@@ -3,8 +3,11 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEven
 import {
   isCoordinateRevealed,
   objectiveDirection,
+  routeTo,
   type GameState,
 } from "../game/state.js";
+import { needleBearing, type ExplorerKit } from "../game/explorer-kit.js";
+import { ExplorerMarker } from "./ExplorerMarker.js";
 import {
   cellsForWord,
   coordinateKey,
@@ -30,6 +33,7 @@ function hachureTicks(radius: number): number {
 interface MapViewProps {
   map: DailyMap;
   state: GameState;
+  kit: ExplorerKit;
   selectedWordId: string | null;
   activeCellKey: string | null;
   availableWordIds: Set<string>;
@@ -74,6 +78,7 @@ function CoinIcon({ x, y }: Coordinate) {
 export function MapView({
   map,
   state,
+  kit,
   selectedWordId,
   activeCellKey,
   availableWordIds,
@@ -90,6 +95,7 @@ export function MapView({
     y: (map.bounds.minY * CELL + map.bounds.maxY * CELL + CELL) / 2,
   };
   const [camera, setCamera] = useState({ ...mapCenter, zoom: 1 });
+  const [hoveredCellKey, setHoveredCellKey] = useState<string | null>(null);
   const drag = useRef<{
     clientX: number;
     clientY: number;
@@ -231,12 +237,49 @@ export function MapView({
       .filter((biome) => present.has(biome));
   }, [map.words]);
   const direction = objectiveDirection(map, state);
+  const compassEquipped = kit.compassUnlocked && kit.compassEquipped;
+  const playerLetter =
+    cellViews.find((view) => view.key === coordinateKey(state.player))?.value ?? "";
   // A câmera enquadra o recorte com folga: sem ela a moldura do recorte cai
   // exatamente na borda e some, e o sangramento — que é o indício de mapa
   // maior — nunca aparece.
   const cameraWidth = (width + BLEED * CELL) / camera.zoom;
   const cameraHeight = (height + BLEED * CELL) / camera.zoom;
   const viewBox = `${camera.x - cameraWidth / 2} ${camera.y - cameraHeight / 2} ${cameraWidth} ${cameraHeight}`;
+  const playerCenter = {
+    x: state.player.x * CELL + CELL / 2,
+    y: state.player.y * CELL + CELL / 2,
+  };
+  // Rota que o explorador percorreria até a casa sob o ponteiro. É o que
+  // responde "até onde dá para andar" sem precisar tentar e levar um recado.
+  const previewRoute = useMemo(() => {
+    if (!hoveredCellKey || aiming || state.status === "won") return null;
+    const route = routeTo(map, state, parseCoordinateKey(hoveredCellKey));
+    return route && route.length > 0 ? route : null;
+  }, [aiming, hoveredCellKey, map, state]);
+
+  // A câmera segue o explorador por zona morta: enquanto ele estiver no miolo
+  // do enquadramento ela não se mexe, e quem arrastou o mapa continua onde
+  // parou. Só quando ele encosta na borda a carta desliza atrás dele.
+  useEffect(() => {
+    setCamera((current) => {
+      const visibleWidth = (width + BLEED * CELL) / current.zoom;
+      const visibleHeight = (height + BLEED * CELL) / current.zoom;
+      const marginX = visibleWidth * 0.32;
+      const marginY = visibleHeight * 0.32;
+      let x = current.x;
+      let y = current.y;
+      const target = {
+        x: state.player.x * CELL + CELL / 2,
+        y: state.player.y * CELL + CELL / 2,
+      };
+      if (target.x < x - visibleWidth / 2 + marginX) x = target.x + visibleWidth / 2 - marginX;
+      else if (target.x > x + visibleWidth / 2 - marginX) x = target.x - visibleWidth / 2 + marginX;
+      if (target.y < y - visibleHeight / 2 + marginY) y = target.y + visibleHeight / 2 - marginY;
+      else if (target.y > y + visibleHeight / 2 - marginY) y = target.y - visibleHeight / 2 + marginY;
+      return x === current.x && y === current.y ? current : { ...current, x, y };
+    });
+  }, [height, state.player.x, state.player.y, width]);
 
   function zoomBy(amount: number) {
     setCamera((current) => ({ ...current, zoom: Math.min(3.5, Math.max(1, current.zoom + amount)) }));
@@ -254,6 +297,12 @@ export function MapView({
   }
 
   function handlePointerMove(event: ReactPointerEvent<SVGSVGElement>) {
+    // Fora de qualquer casa o alvo é a própria folha: aí a rota prevista some
+    // em vez de ficar pendurada na última casa que o ponteiro tocou.
+    if (event.target === event.currentTarget && hoveredCellKey !== null) {
+      setHoveredCellKey(null);
+      onHoverWord(null);
+    }
     const origin = drag.current;
     if (!origin) return;
     const deltaX = event.clientX - origin.clientX;
@@ -327,7 +376,10 @@ export function MapView({
         role="img"
         aria-label="Mapa de palavras cruzadas do dia"
         onPointerDown={handlePointerDown}
-        onPointerLeave={() => onHoverWord(null)}
+        onPointerLeave={() => {
+          setHoveredCellKey(null);
+          onHoverWord(null);
+        }}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
@@ -507,6 +559,7 @@ export function MapView({
                 ].join(" ")}
                 transform={`translate(${cell.position.x * CELL} ${cell.position.y * CELL}) rotate(${rotation})`}
                 onPointerEnter={() => {
+                  setHoveredCellKey(key);
                   if (!detailed) return;
                   onHoverWord(wordToHighlight(cell.words));
                 }}
@@ -593,23 +646,44 @@ export function MapView({
           })}
         </g>
 
-        {direction ? (
+        {previewRoute ? (
+          <g className="route-preview" aria-hidden="true">
+            <path
+              d={`M${playerCenter.x} ${playerCenter.y} ${previewRoute
+                .map((step) => `L${step.x * CELL + CELL / 2} ${step.y * CELL + CELL / 2}`)
+                .join(" ")}`}
+            />
+            <circle
+              className="route-preview-goal"
+              cx={previewRoute[previewRoute.length - 1]!.x * CELL + CELL / 2}
+              cy={previewRoute[previewRoute.length - 1]!.y * CELL + CELL / 2}
+              r={CELL * 0.34}
+            />
+          </g>
+        ) : null}
+
+        {/* Com a bússola equipada, a agulha é o mostrador da direção comprada.
+            Sem ela, segue a seta de sempre — dois indicadores ao mesmo tempo
+            seria a mesma informação dita duas vezes. */}
+        {direction && !compassEquipped ? (
           <g
             className="direction-arrow"
-            transform={`translate(${state.player.x * CELL + CELL / 2} ${state.player.y * CELL + CELL / 2}) rotate(${Math.atan2(direction.y, direction.x) * (180 / Math.PI)})`}
+            transform={`translate(${playerCenter.x} ${playerCenter.y}) rotate(${Math.atan2(direction.y, direction.x) * (180 / Math.PI)})`}
           >
             <path d="M22 0l-8-6v4H3v4h11v4z" />
           </g>
         ) : null}
 
-        <g
-          className="explorer-marker"
-          transform={`translate(${state.player.x * CELL + CELL / 2} ${state.player.y * CELL + CELL / 2})`}
-          aria-label="Sua posição"
-          data-player-key={coordinateKey(state.player)}
-        >
-          <circle r="11" />
-          <path d="M0-7 5 6 0 3-5 6z" />
+        <g data-player-key={coordinateKey(state.player)}>
+          <ExplorerMarker
+            x={playerCenter.x}
+            y={playerCenter.y}
+            cell={CELL}
+            kit={kit}
+            bearing={needleBearing(direction)}
+            aiming={Boolean(direction)}
+            letter={playerLetter}
+          />
         </g>
       </svg>
       <div className="map-controls has-sketch-frame" aria-label="Controles do mapa">
