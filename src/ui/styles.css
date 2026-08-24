@@ -70,6 +70,10 @@
   --moss: #65775d;
   --night: #18211f;
   --line: rgb(55 62 53 / 22%);
+  /* Intensidade da cor de bioma no fundo do mapa. Calibrado no navegador:
+     forte demais vira bloco chapado, fraco demais some sob a névoa. */
+  --biome-wash: .5;
+  --biome-texture: .48;
 }
 
 * { box-sizing: border-box; }
@@ -262,8 +266,8 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .paper-wash { fill: rgb(245 230 195 / 39%); stroke: none; }
 /* Atlas de biomas: aguada borrada + hachura + costa desenhada */
 .biome-atlas { pointer-events: none; }
-.biome-wash { opacity: .16; mix-blend-mode: multiply; }
-.biome-texture { opacity: .3; mix-blend-mode: multiply; }
+.biome-wash { opacity: var(--biome-wash); mix-blend-mode: multiply; }
+.biome-texture { opacity: var(--biome-texture); mix-blend-mode: multiply; }
 .coast-halo { fill: none; stroke: rgb(94 78 52 / 16%); stroke-width: 6; stroke-linecap: round; }
 .coast-line { fill: none; stroke: rgb(74 62 43 / 62%); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 11 6; vector-effect: non-scaling-stroke; }
 .biome-labels text { fill: rgb(70 60 42 / 62%); font-family: "EB Garamond", Georgia, serif; font-size: 19px; font-style: italic; letter-spacing: .3em; text-anchor: middle; text-transform: uppercase; }
@@ -291,7 +295,7 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .word-frame.is-solved { stroke: rgb(42 71 62 / 74%); stroke-width: 2; }
 .word-frame.is-selected { stroke: #a36f29; stroke-width: 3; opacity: 1; filter: drop-shadow(0 2px 2px rgb(67 48 25 / 20%)); }
 .crossword-cell { cursor: pointer; }
-.crossword-cell path { fill: rgb(247 239 216 / 62%); stroke: #626659; stroke-width: 1.4; vector-effect: non-scaling-stroke; transition: opacity .2s, fill .2s, stroke .2s; }
+.crossword-cell path { fill: rgb(249 242 221 / 86%); stroke: #626659; stroke-width: 1.4; vector-effect: non-scaling-stroke; transition: opacity .2s, fill .2s, stroke .2s; }
 .crossword-cell.is-distant path { fill: rgb(47 58 54 / 18%); stroke: rgb(50 59 54 / 28%); opacity: .6; }
 .crossword-cell.is-detailed path { filter: url(#paper-shadow); }
 .crossword-cell.is-available path { fill: rgb(255 249 231 / 92%); stroke: #5e665c; }
