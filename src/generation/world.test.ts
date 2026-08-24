@@ -138,6 +138,19 @@ describe("mundo diário", () => {
     }
   }, 20_000);
 
+  it("gera mesmo quando o bioma da origem não abriga nenhuma resposta central", () => {
+    const catalog = loadBundledCatalog();
+    for (const seed of ["cruzaverso:livre:nebulosa-e2e", "cruzaverso:livre:sonda-7"]) {
+      const world = generateDailyWorld({ date: "livre", seed, catalog });
+      expect(validateWorld(world), seed).toEqual([]);
+      const field = createBiomeField(world.biomeField, world.biomeSites);
+      const initial = world.words[0];
+      expect(initial?.biome, seed).toBe(
+        initial ? majorityBiome(field, cellsForWord(initial)) : undefined,
+      );
+    }
+  }, 20_000);
+
   it("recusa palavras apenas encostadas de lado ou pela ponta", () => {
     const placed = (
       id: string,
