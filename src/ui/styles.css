@@ -380,7 +380,7 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .current-clue { position: relative; min-height: 235px; padding: 24px 21px 18px; color: #343a35; border-radius: 3px; background: linear-gradient(rgb(247 237 209 / 84%), rgb(239 225 190 / 84%)), url("/assets/atlas-paper.png") center / 800px; box-shadow: 0 7px 18px rgb(0 0 0 / 22%); transform: rotate(.18deg); }
 .current-clue::before { content: ""; position: absolute; width: 75px; height: 17px; top: -7px; right: 42px; background: rgb(205 187 145 / 68%); transform: rotate(3deg); }
 .biome-stamp { display: inline-block; padding: 4px 8px; border: 1px solid currentColor; border-radius: 2px; font-size: .55rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; transform: rotate(-1.5deg); }
-.biome-cotidiano { color:#617052 }.biome-ciencia { color:#49738e }.biome-historia { color:#936937 }.biome-cultura-pop { color:#96535d }
+.biome-cotidiano { color:#617052 }.biome-ciencia { color:#49738e }.biome-historia { color:#936937 }.biome-cultura-pop { color:#96535d }.biome-natureza { color:#3f7058 }.biome-brasil { color:#92712f }
 .current-clue > p { min-height: 55px; margin: 15px 0 18px; font-family: "EB Garamond", Georgia, serif; font-size: .94rem; line-height: 1.48; }
 .current-clue > .clue-line { min-height: 0; margin: 13px 0 0; }
 .current-clue > .clue-line:last-of-type { margin-bottom: 16px; }
