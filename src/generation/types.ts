@@ -76,7 +76,7 @@ export interface DailyWorld {
 export type ItemType =
   | "reveal-letter"
   | "simplify-clue"
-  | "reveal-area"
+  | "unlock-route"
   | "objective-direction";
 
 export type MapMode = "daily" | "free";

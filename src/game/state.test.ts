@@ -156,14 +156,14 @@ describe("estado de uma run", () => {
     expect(map.words.find((candidate) => candidate.id === word.id)?.clues.normal).toBeTruthy();
   });
 
-  it("a luneta recusa alvo que não descobre nada e não cobra", () => {
+  it("a luneta recusa alvo sem rota bloqueada e não cobra", () => {
     const map = fixture();
     const before = { ...createInitialGameState(map), credits: 100 };
-    const longe = { x: map.bounds.minX - 40, y: map.bounds.minY - 40 };
+    const vazio = { x: map.bounds.minX - 40, y: map.bounds.minY - 40 };
     const after = applyGameAction(map, before, {
       type: "use-item",
-      item: "reveal-area",
-      position: longe,
+      item: "unlock-route",
+      position: vazio,
     });
     expect(after.credits).toBe(100);
     expect(after.creditsSpent).toBe(0);
@@ -171,26 +171,77 @@ describe("estado de uma run", () => {
     expect(after.lastFeedback?.kind).toBe("unavailable");
   });
 
-  it("a luneta abre a área no ponto escolhido, não no explorador", () => {
+  it("a luneta recusa rota que ainda está na névoa", () => {
     const map = fixture();
-    // Uma casa real bem longe do explorador: é o ponto que a mira serve para
-    // alcançar, e ele continua na névoa até a luneta ser usada.
-    const target = map.words
-      .flatMap((word) => cellsForWord(word))
-      .map((cell) => ({ x: cell.x, y: cell.y }))
-      .sort(
-        (left, right) =>
-          Math.abs(right.x - map.spawn.x) +
-          Math.abs(right.y - map.spawn.y) -
-          (Math.abs(left.x - map.spawn.x) + Math.abs(left.y - map.spawn.y)),
-      )[0]!;
     const before = { ...createInitialGameState(map), credits: 100 };
-    expect(isCoordinateRevealed(before, target)).toBe(false);
+    const naNevoa = map.words.find(
+      (word) =>
+        !availableWords(map, before).some((open) => open.id === word.id) &&
+        cellsForWord(word).every((cell) => !isCoordinateRevealed(before, cell)),
+    );
+    expect(naNevoa, "o mapa precisa ter palavra fora do alcance inicial").toBeDefined();
     const after = applyGameAction(map, before, {
       type: "use-item",
-      item: "reveal-area",
-      position: target,
+      item: "unlock-route",
+      position: cellsForWord(naNevoa!)[0]!,
     });
-    expect(isCoordinateRevealed(after, target)).toBe(true);
+    expect(after.credits).toBe(100);
+    expect(after.lastFeedback?.kind).toBe("unavailable");
+  });
+
+  it("a luneta libera uma rota avistada que não toca a trilha", () => {
+    const map = fixture();
+    // Resolver a primeira palavra abre bastante névoa: é dela que sai a rota
+    // avistada mas ainda sem acesso, que é o alvo do item.
+    const primeira = availableWords(map, createInitialGameState(map))[0]!;
+    const aberto = fillAndSubmit(map, createInitialGameState(map), primeira.id);
+    const before = { ...aberto, credits: 100 };
+
+    const avistada = map.words.find(
+      (word) =>
+        !availableWords(map, before).some((open) => open.id === word.id) &&
+        cellsForWord(word).some((cell) => isCoordinateRevealed(before, cell)),
+    );
+    expect(avistada, "o mapa precisa ter rota avistada e bloqueada").toBeDefined();
+
+    const after = applyGameAction(map, before, {
+      type: "use-item",
+      item: "unlock-route",
+      position: cellsForWord(avistada!)[0]!,
+    });
+
+    expect(after.credits).toBe(80);
+    expect(after.itemsUsed).toBe(1);
+    expect(after.unlockedWordIds).toContain(avistada!.id);
+    expect(availableWords(map, after).some((word) => word.id === avistada!.id)).toBe(true);
+    // Liberar dá trabalho, não teleporte: andar continua exigindo caminho resolvido.
+    const longe = applyGameAction(map, after, {
+      type: "move",
+      destination: cellsForWord(avistada!)[0]!,
+    });
+    expect(longe.lastFeedback?.kind).toBe("blocked");
+  });
+
+  it("a rota liberada aceita letra e paga crédito ao ser resolvida", () => {
+    const map = fixture();
+    const primeira = availableWords(map, createInitialGameState(map))[0]!;
+    const aberto = fillAndSubmit(map, createInitialGameState(map), primeira.id);
+    const before = { ...aberto, credits: 100 };
+    const avistada = map.words.find(
+      (word) =>
+        !availableWords(map, before).some((open) => open.id === word.id) &&
+        cellsForWord(word).some((cell) => isCoordinateRevealed(before, cell)),
+    )!;
+
+    let state = applyGameAction(map, before, {
+      type: "use-item",
+      item: "unlock-route",
+      position: cellsForWord(avistada)[0]!,
+    });
+    const saldo = state.credits;
+    state = fillAndSubmit(map, state, avistada.id);
+
+    expect(state.solvedWordIds).toContain(avistada.id);
+    expect(state.credits).toBe(saldo + avistada.gridAnswer.length);
   });
 });
