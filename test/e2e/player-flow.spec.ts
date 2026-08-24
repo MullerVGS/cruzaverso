@@ -268,11 +268,17 @@ test("o teclado escreve, troca de palavra e move sem disputar letras com a câme
       : destination!.y > map.spawn.y
         ? "ArrowDown"
         : "ArrowUp";
+  const atlasEnquadrado = page.getByRole("img", { name: "Mapa de palavras cruzadas do dia" });
+  const viewBoxAntesDoPasso = await atlasEnquadrado.getAttribute("viewBox");
   await page.keyboard.press(movementKey);
   await expect(page.locator("[data-player-key]")).toHaveAttribute(
     "data-player-key",
     coordinateKey(destination!),
   );
+  // No enquadramento inteiro o recorte já cabe: a câmera segue o explorador,
+  // mas nunca além da própria carta. Sem essa trava, andar até a beirada
+  // empurrava o lado oposto do mapa para fora da tela.
+  await expect(atlasEnquadrado).toHaveAttribute("viewBox", viewBoxAntesDoPasso!);
 
   await page.locator(`[data-cell-key="${coordinateKey(map.spawn)}"]`).click();
   await expect(page.locator("[data-player-key]")).toHaveAttribute(

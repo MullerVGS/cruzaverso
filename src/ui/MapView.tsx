@@ -260,26 +260,37 @@ export function MapView({
 
   // A câmera segue o explorador por zona morta: enquanto ele estiver no miolo
   // do enquadramento ela não se mexe, e quem arrastou o mapa continua onde
-  // parou. Só quando ele encosta na borda a carta desliza atrás dele.
+  // parou. Só quando ele encosta na borda a carta desliza atrás dele — e nunca
+  // além da própria carta. Sem essa trava, no enquadramento inteiro (zoom 1,
+  // onde o recorte já cabe) andar até a beirada empurrava o lado oposto do
+  // mapa para fora da tela.
   useEffect(() => {
     setCamera((current) => {
-      const visibleWidth = (width + BLEED * CELL) / current.zoom;
-      const visibleHeight = (height + BLEED * CELL) / current.zoom;
+      const framedWidth = width + BLEED * CELL;
+      const framedHeight = height + BLEED * CELL;
+      const visibleWidth = framedWidth / current.zoom;
+      const visibleHeight = framedHeight / current.zoom;
       const marginX = visibleWidth * 0.32;
       const marginY = visibleHeight * 0.32;
-      let x = current.x;
-      let y = current.y;
       const target = {
         x: state.player.x * CELL + CELL / 2,
         y: state.player.y * CELL + CELL / 2,
       };
+      let x = current.x;
+      let y = current.y;
       if (target.x < x - visibleWidth / 2 + marginX) x = target.x + visibleWidth / 2 - marginX;
       else if (target.x > x + visibleWidth / 2 - marginX) x = target.x - visibleWidth / 2 + marginX;
       if (target.y < y - visibleHeight / 2 + marginY) y = target.y + visibleHeight / 2 - marginY;
       else if (target.y > y + visibleHeight / 2 - marginY) y = target.y - visibleHeight / 2 + marginY;
+
+      const slackX = (framedWidth - visibleWidth) / 2;
+      const slackY = (framedHeight - visibleHeight) / 2;
+      x = slackX <= 0 ? mapCenter.x : Math.min(mapCenter.x + slackX, Math.max(mapCenter.x - slackX, x));
+      y = slackY <= 0 ? mapCenter.y : Math.min(mapCenter.y + slackY, Math.max(mapCenter.y - slackY, y));
+
       return x === current.x && y === current.y ? current : { ...current, x, y };
     });
-  }, [height, state.player.x, state.player.y, width]);
+  }, [height, mapCenter.x, mapCenter.y, state.player.x, state.player.y, width]);
 
   function zoomBy(amount: number) {
     setCamera((current) => ({ ...current, zoom: Math.min(3.5, Math.max(1, current.zoom + amount)) }));
