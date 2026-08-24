@@ -7,20 +7,23 @@ import {
   type GameAction,
   type GameState,
 } from "../game/state.js";
+import { entryIndexForWord, eraseAt, typeAt } from "../game/typing.js";
 import {
   cellsForWord,
   coordinateKey,
   type Coordinate,
   type DailyMap,
   type PlacedWord,
-  type PowerupType,
 } from "../generation/types.js";
 import { normalizeGridAnswer } from "../content/catalog.js";
-import { GAME_BALANCE, POWERUP_DEFINITIONS } from "../config/game.js";
+import { GAME_BALANCE, ITEM_DEFINITIONS } from "../config/game.js";
 import { sendTelemetry } from "./api.js";
+import { ClueDesk } from "./ClueDesk.js";
+import { ItemGlyph } from "./ItemGlyph.js";
 import { MapView } from "./MapView.js";
-import { PowerupGlyph } from "./PowerupGlyph.js";
+import { Shop } from "./Shop.js";
 import { SketchFrame } from "./SketchFrame.js";
+import { useArmedItem } from "./useArmedItem.js";
 import { playSound } from "./sfx.js";
 
 function saveKey(map: DailyMap): string {
@@ -32,7 +35,7 @@ function loadSavedState(map: DailyMap): GameState | null {
     const raw = localStorage.getItem(saveKey(map));
     if (!raw) return null;
     const state = JSON.parse(raw) as GameState;
-    return state.schemaVersion === 1 && state.mapId === map.id ? state : null;
+    return state.schemaVersion === 2 && state.mapId === map.id ? state : null;
   } catch {
     return null;
   }
@@ -54,6 +57,18 @@ function formatActiveTime(activeMs: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+/** No modo livre a seed vem embrulhada como `cruzaverso:livre:<slug>:medium`. */
+function freeSeedLabel(map: DailyMap): string {
+  return map.seed.replace(/^cruzaverso:livre:/, "").replace(/:medium$/, "");
+}
+
+const AIM_INSTRUCTION = {
+  cell: "clique numa casa vazia de uma palavra aberta",
+  word: "clique numa palavra aberta",
+  map: "clique em qualquer ponto do mapa",
+  instant: "",
+} as const;
+
 interface GameScreenProps {
   map: DailyMap;
   initialState?: GameState | null;
@@ -66,7 +81,6 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   const [activeCellIndex, setActiveCellIndex] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(state.status === "won");
-  const [pendingLetterTarget, setPendingLetterTarget] = useState(false);
   const [soundsEnabled, setSoundsEnabled] = useState(
     () => localStorage.getItem("cruzaverso:sounds") !== "off",
   );
@@ -80,6 +94,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   const [tipVisible, setTipVisible] = useState(
     () => localStorage.getItem("cruzaverso:tutorial-seen") !== "yes",
   );
+  const { armed, arm, disarm, targeting } = useArmedItem();
   const runId = useMemo(() => getRunId(map), [map]);
   const startedTelemetry = useRef(false);
   const lastActivityAt = useRef(Date.now());
@@ -108,14 +123,23 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
 
   useEffect(() => {
     if (!selectedWord) return;
-    const cells = cellsForWord(selectedWord);
-    const firstWritable = cells.findIndex((cell) => !stateRef.current.ink[coordinateKey(cell)]);
-    const firstEmpty = cells.findIndex(
-      (cell) => !stateRef.current.ink[coordinateKey(cell)] && !stateRef.current.pencil[coordinateKey(cell)],
-    );
-    const index = firstEmpty >= 0 ? firstEmpty : Math.max(0, firstWritable);
-    setEntryCell(index);
+    setEntryCell(entryIndexForWord(slotsFor(selectedWord).slots));
   }, [selectedWordId]);
+
+  const playerKey = coordinateKey(state.player);
+  // Chegar andando numa casa muda o foco de pista. A dependência é só a posição
+  // de propósito: qualquer outra mudança de estado não deve roubar o foco.
+  useEffect(() => {
+    const here = wordsAvailable.filter(
+      (word) =>
+        !state.solvedWordIds.includes(word.id) &&
+        cellsForWord(word).some((cell) => coordinateKey(cell) === playerKey),
+    );
+    if (here.length === 0) return;
+    const previous = map.words.find((word) => word.id === selectedWordId);
+    const sameOrientation = here.find((word) => word.orientation === previous?.orientation);
+    setSelectedWordId((sameOrientation ?? here[0])!.id);
+  }, [playerKey]);
 
   useEffect(() => {
     localStorage.setItem(saveKey(map), JSON.stringify(state));
@@ -240,15 +264,16 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
         },
       });
     }
-    if (action.type === "use-powerup" && next !== previous) {
+    if (action.type === "use-item" && next !== previous) {
       sendTelemetry(telemetryEnabled, {
         runId,
         mapId: map.id,
-        event: "powerup_used",
+        event: "item_used",
         elapsedActiveMs: next.activeMs,
         payload: {
-          powerupType: action.powerupType,
-          inventoryCount: Object.values(next.inventory).reduce((sum, value) => sum + value, 0),
+          itemType: action.item,
+          credits: next.credits,
+          creditsEarned: next.creditsEarned,
         },
       });
     }
@@ -306,45 +331,37 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
     if (next) setSelectedWordId(next.id);
   }
 
+  function slotsFor(word: PlacedWord) {
+    const cells = cellsForWord(word);
+    return {
+      cells,
+      slots: {
+        ink: cells.map((cell) => Boolean(stateRef.current.ink[coordinateKey(cell)])),
+        pencil: cells.map((cell) => Boolean(stateRef.current.pencil[coordinateKey(cell)])),
+      },
+    };
+  }
+
   function writeLetter(letter: string) {
     if (!selectedWord || stateRef.current.solvedWordIds.includes(selectedWord.id)) return;
-    const cells = cellsForWord(selectedWord);
-    let index = activeCellIndexRef.current;
-    if (stateRef.current.ink[coordinateKey(cells[index] ?? cells[0]!)]) {
-      const nextWritable = cells.findIndex(
-        (cell, cellIndex) => cellIndex >= index && !stateRef.current.ink[coordinateKey(cell)],
-      );
-      if (nextWritable < 0) return;
-      index = nextWritable;
+    const { cells, slots } = slotsFor(selectedWord);
+    const step = typeAt(slots, activeCellIndexRef.current);
+    if (step.writeIndex !== null) {
+      const cell = cells[step.writeIndex];
+      if (cell) perform({ type: "write-cell", position: cell, letter });
     }
-    const cell = cells[index];
-    if (!cell) return;
-    perform({ type: "write-cell", position: cell, letter });
-    const nextWritable = cells.findIndex(
-      (candidate, cellIndex) => cellIndex > index && !stateRef.current.ink[coordinateKey(candidate)],
-    );
-    setEntryCell(nextWritable >= 0 ? nextWritable : index);
+    setEntryCell(step.nextIndex);
   }
 
   function eraseLetter() {
     if (!selectedWord || stateRef.current.solvedWordIds.includes(selectedWord.id)) return;
-    const cells = cellsForWord(selectedWord);
-    let index = activeCellIndexRef.current;
-    const current = cells[index];
-    if (!current) return;
-    if (!stateRef.current.pencil[coordinateKey(current)]) {
-      for (let candidate = index - 1; candidate >= 0; candidate -= 1) {
-        const cell = cells[candidate];
-        if (cell && !stateRef.current.ink[coordinateKey(cell)]) {
-          index = candidate;
-          break;
-        }
-      }
+    const { cells, slots } = slotsFor(selectedWord);
+    const step = eraseAt(slots, activeCellIndexRef.current);
+    if (step.eraseIndex !== null) {
+      const cell = cells[step.eraseIndex];
+      if (cell) perform({ type: "write-cell", position: cell, letter: "" });
     }
-    const cell = cells[index];
-    if (!cell || stateRef.current.ink[coordinateKey(cell)]) return;
-    perform({ type: "write-cell", position: cell, letter: "" });
-    setEntryCell(index);
+    setEntryCell(step.nextIndex);
   }
 
   function updateGuess(value: string) {
@@ -368,22 +385,45 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
     commitState(next);
   }
 
-  function handleCellClick(position: Coordinate, words: PlacedWord[]) {
-    if (pendingLetterTarget && selectedWord) {
-      const belongsToSelected = cellsForWord(selectedWord).some(
-        (cell) => coordinateKey(cell) === coordinateKey(position),
-      );
-      if (belongsToSelected && !state.ink[coordinateKey(position)]) {
-        perform({
-          type: "use-powerup",
-          powerupType: "reveal-letter",
-          wordId: selectedWord.id,
-          position,
-        });
-        setPendingLetterTarget(false);
-      }
-      return;
+  /**
+   * Aplica o item armado no alvo clicado e devolve `true` quando o clique foi
+   * consumido pela mira — inclusive num alvo inválido, para o clique não virar
+   * movimento no meio de uma compra. O crédito só sai aqui, no reducer.
+   */
+  function applyArmedAt(position: Coordinate, words: PlacedWord[]): boolean {
+    if (!armed) return false;
+    if (targeting === "map") {
+      perform({ type: "use-item", item: armed, position });
+      disarm();
+      return true;
     }
+    if (targeting === "cell") {
+      if (state.ink[coordinateKey(position)]) return true;
+      const target = words.find(
+        (word) => availableIds.has(word.id) && !state.solvedWordIds.includes(word.id),
+      );
+      if (!target) return true;
+      perform({ type: "use-item", item: armed, position });
+      disarm();
+      return true;
+    }
+    if (targeting === "word") {
+      const target = words.find(
+        (word) =>
+          availableIds.has(word.id) &&
+          !state.solvedWordIds.includes(word.id) &&
+          !state.simplifiedWordIds.includes(word.id),
+      );
+      if (!target) return true;
+      perform({ type: "use-item", item: armed, wordId: target.id });
+      disarm();
+      return true;
+    }
+    return false;
+  }
+
+  function handleCellClick(position: Coordinate, words: PlacedWord[]) {
+    if (applyArmedAt(position, words)) return;
     const candidates = words.filter(
       (word) => availableIds.has(word.id) && !state.solvedWordIds.includes(word.id),
     );
@@ -401,29 +441,18 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
         (cell) => coordinateKey(cell) === coordinateKey(position),
       );
       if (cellIndex >= 0 && !state.ink[coordinateKey(position)]) setEntryCell(cellIndex);
-      return;
     }
-  }
-
-  function usePowerup(powerupType: PowerupType) {
-    if (powerupType === "reveal-letter") {
-      if (selectedWord) setPendingLetterTarget(true);
-      return;
-    }
-    perform({
-      type: "use-powerup",
-      powerupType,
-      wordId: selectedWord?.id,
-    });
   }
 
   function resetDraft() {
     if (state.status === "won") return;
-    if (!window.confirm("Apagar todos os traços e recomeçar a expedição de hoje?")) return;
+    const subject = map.mode === "daily" ? "a expedição de hoje" : "esta expedição livre";
+    if (!window.confirm(`Apagar todos os traços e recomeçar ${subject}?`)) return;
     const fresh = createInitialGameState(map);
     commitState(fresh);
     setSelectedWordId(null);
     setSettingsOpen(false);
+    disarm();
     localStorage.setItem(saveKey(map), JSON.stringify(fresh));
   }
 
@@ -445,26 +474,54 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   }
 
   const unsolvedAvailable = wordsAvailable.filter((word) => !state.solvedWordIds.includes(word.id));
-  const clue = selectedWord
-    ? state.simplifiedWordIds.includes(selectedWord.id)
-      ? selectedWord.clues.simple
-      : selectedWord.clues.normal
-    : "Escolha uma trilha no mapa.";
-  const inventoryTotal = Object.values(state.inventory).reduce((sum, value) => sum + value, 0);
+  const coinsTotal = map.objects.filter((object) => object.type === "coin").length;
+  const coinsCollected = map.objects.filter(
+    (object) => object.type === "coin" && state.collectedObjectIds.includes(object.id),
+  ).length;
 
   return (
     <main className="game-shell">
       <header className="game-header">
         <button className="wordmark" type="button" onClick={onBack} aria-label="Voltar ao início">
           <span className="wordmark-star">✣</span>
-          <span><strong>Cruzaverso</strong><small>{map.date.split("-").reverse().join(" · ")}</small></span>
+          <span>
+            <strong>Cruzaverso</strong>
+            <small>{map.mode === "daily" ? map.date.split("-").reverse().join(" · ") : freeSeedLabel(map)}</small>
+          </span>
         </button>
-        <div className="objective-strip has-sketch-frame" aria-label="Objetivo da expedição">
-          <SketchFrame seed="tarja-objetivo" />
-          <span className="objective-icon">⌘</span>
-          <span><small>OBJETIVO</small><strong>Encontre 2 chaves e alcance a saída</strong></span>
-          <b>{Math.min(state.keysCollected, 2)}<i>/2</i></b>
-        </div>
+        {map.objective.kind === "keys-and-exit" ? (
+          <div className="objective-strip has-sketch-frame" aria-label="Objetivo da expedição">
+            <SketchFrame seed="tarja-objetivo" />
+            <span className="objective-icon">⌘</span>
+            <span>
+              <small>OBJETIVO</small>
+              <strong>Encontre {map.objective.keysRequired} chaves e alcance a saída</strong>
+            </span>
+            <b>
+              {Math.min(state.keysCollected, map.objective.keysRequired)}
+              <i>/{map.objective.keysRequired}</i>
+            </b>
+          </div>
+        ) : (
+          <div className="objective-strip is-sandbox has-sketch-frame" aria-label="Progresso da expedição livre">
+            <SketchFrame seed="tarja-livre" />
+            <span className="objective-icon">✧</span>
+            <span className="sandbox-tally">
+              <span>
+                <small>PALAVRAS</small>
+                <strong>{state.solvedWordIds.length}/{map.words.length}</strong>
+              </span>
+              <span>
+                <small>MOEDAS</small>
+                <strong>{coinsCollected}/{coinsTotal}</strong>
+              </span>
+              <span>
+                <small>CARTEIRA</small>
+                <strong>⬡ {state.credits}</strong>
+              </span>
+            </span>
+          </div>
+        )}
         <div className="header-actions">
           <span className="active-time" title="Tempo ativo nesta expedição">◷ {formatActiveTime(state.activeMs)}</span>
           <button className="icon-button has-sketch-frame" type="button" onClick={() => setSettingsOpen((open) => !open)} aria-label="Abrir ajustes"><SketchFrame seed="ajustes" roughness={1} />⚙</button>
@@ -478,7 +535,9 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
           selectedWordId={selectedWordId}
           activeCellKey={activeCellKey}
           availableWordIds={availableIds}
+          armedTargeting={targeting}
           onCellClick={handleCellClick}
+          onMapClick={(position) => applyArmedAt(position, [])}
         />
 
         <aside className="clue-desk">
@@ -487,114 +546,26 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
             <span className="solved-counter">{state.solvedWordIds.length}/{map.words.length}</span>
           </div>
 
-          <div className="clue-tabs" role="list" aria-label="Pistas disponíveis">
-            {wordsAvailable.map((word, index) => (
-              <button
-                type="button"
-                role="listitem"
-                key={word.id}
-                data-word-id={word.id}
-                className={`has-sketch-frame ${word.id === selectedWordId ? "active" : ""} ${state.solvedWordIds.includes(word.id) ? "solved" : ""}`}
-                onClick={() => setSelectedWordId(word.id)}
-                title={state.solvedWordIds.includes(word.id) ? word.answer : word.clues.normal}
-              >
-                <SketchFrame seed={`aba:${word.id}`} roughness={1.1} />
-                <b>{index + 1}</b>
-                <span>{state.solvedWordIds.includes(word.id) ? word.answer : `${word.gridAnswer.length} letras`}</span>
-                <i>{word.orientation === "horizontal" ? "→" : "↓"}</i>
-              </button>
-            ))}
-          </div>
+          <ClueDesk
+            state={state}
+            wordsAvailable={wordsAvailable}
+            selectedWord={selectedWord}
+            selectedWordId={selectedWordId}
+            activeCellIndex={activeCellIndex}
+            onSelectWord={setSelectedWordId}
+            onFocusCell={setEntryCell}
+            onSubmit={(wordId) => perform({ type: "submit-word", wordId })}
+            onWriteLetter={writeLetter}
+            onGuess={updateGuess}
+          />
 
-          <section className="current-clue has-sketch-frame" aria-live="polite">
-            <SketchFrame seed={selectedWord?.id ?? "pista"} />
-            <span className={`biome-stamp biome-${selectedWord?.biome ?? "cotidiano"}`}>
-              {selectedWord?.biome.replace("-", " ") ?? "fronteira"}
-            </span>
-            <p>{clue}</p>
-            {selectedWord ? (
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  perform({ type: "submit-word", wordId: selectedWord.id });
-                }}
-              >
-                <label htmlFor="answer-input">
-                  {selectedWord.orientation === "horizontal" ? "Horizontal" : "Vertical"}
-                  {` · ${selectedWord.gridAnswer.length} letras`}
-                </label>
-                <div
-                  className="answer-pattern"
-                  role="group"
-                  aria-label={`Resposta com ${selectedWord.gridAnswer.length} letras`}
-                >
-                  {selectedCells.map((cell, index) => {
-                    const key = coordinateKey(cell);
-                    const value = state.ink[key] ?? state.pencil[key] ?? "";
-                    const inInk = Boolean(state.ink[key]);
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        className={`answer-slot has-sketch-frame ${index === activeCellIndex ? "active" : ""} ${inInk ? "in-ink" : ""}`}
-                        onClick={() => {
-                          if (!inInk && !state.solvedWordIds.includes(selectedWord.id)) setEntryCell(index);
-                          document.querySelector<HTMLInputElement>("#answer-input")?.focus();
-                        }}
-                        aria-label={`Letra ${index + 1}${value ? `: ${value}` : ": vazia"}`}
-                      >
-                        <SketchFrame seed={`slot:${selectedWord.id}:${index}`} roughness={.9} />
-                        {value}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="answer-line">
-                  <input
-                    id="answer-input"
-                    data-selected-word-id={selectedWord.id}
-                    value=""
-                    placeholder="Comece a digitar…"
-                    onChange={(event) => {
-                      const value = normalizeGridAnswer(event.target.value);
-                      if (value.length > 1) updateGuess(value);
-                      else if (value) writeLetter(value);
-                    }}
-                    maxLength={selectedWord.gridAnswer.length}
-                    autoComplete="off"
-                    spellCheck={false}
-                    disabled={state.solvedWordIds.includes(selectedWord.id) || state.status === "won"}
-                    aria-describedby="answer-help"
-                  />
-                  <button type="submit" disabled={state.solvedWordIds.includes(selectedWord.id)}>
-                    {state.solvedWordIds.includes(selectedWord.id) ? "Em tinta" : "Conferir"}
-                  </button>
-                </div>
-                <small id="answer-help">Digite para preencher · Tab troca a palavra · Setas movem pelo caminho.</small>
-              </form>
-            ) : null}
-          </section>
-
-          <section className="inventory">
-            <div className="inventory-heading"><span>MOCHILA</span><small>{inventoryTotal} achados</small></div>
-            <div className="powerup-grid">
-              {(Object.entries(POWERUP_DEFINITIONS) as Array<[PowerupType, (typeof POWERUP_DEFINITIONS)[PowerupType]]>).map(([type, meta]) => (
-                <button
-                  key={type}
-                  type="button"
-                  disabled={state.inventory[type] === 0 || (type !== "reveal-area" && type !== "objective-direction" && !selectedWord)}
-                  onClick={() => usePowerup(type)}
-                  title={`${meta.name}: ${meta.description}`}
-                  aria-pressed={type === "reveal-letter" ? pendingLetterTarget : undefined}
-                  className="has-sketch-frame"
-                >
-                  <SketchFrame seed={`mochila:${type}`} roughness={1.2} />
-                  <PowerupGlyph powerupType={type} size={24} />
-                  <b>{state.inventory[type]}</b><span>{meta.name}</span>
-                </button>
-              ))}
-            </div>
-          </section>
+          <Shop
+            credits={state.credits}
+            armed={armed}
+            disabled={state.status === "won"}
+            onArm={arm}
+            onUseInstant={(item) => perform({ type: "use-item", item })}
+          />
         </aside>
       </section>
 
@@ -603,10 +574,16 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
           {state.lastFeedback.message}
         </div>
       ) : null}
-      {pendingLetterTarget ? (
-        <div className="target-hint" role="status">
-          <b>A·</b> Escolha no mapa uma célula da palavra aberta.
-          <button type="button" onClick={() => setPendingLetterTarget(false)}>Cancelar</button>
+      {armed && targeting ? (
+        <div className="armed-banner" role="status">
+          <ItemGlyph item={armed} size={20} />
+          <span>
+            <strong>{ITEM_DEFINITIONS[armed].name}</strong>
+            {AIM_INSTRUCTION[targeting]}
+          </span>
+          <b>⬡ {ITEM_DEFINITIONS[armed].price}</b>
+          <button type="button" onClick={disarm}>Cancelar</button>
+          <small>Esc ou botão direito cancelam sem cobrar.</small>
         </div>
       ) : null}
 
@@ -652,8 +629,10 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
               <span><b>{state.keysCollected}</b> chaves encontradas</span>
               <span><b>{formatActiveTime(state.activeMs)}</b> tempo ativo</span>
               <span><b>{state.captures}</b> áreas capturadas</span>
-              <span><b>{state.powerupsUsed}</b> powerups usados</span>
+              <span><b>{state.itemsUsed}</b> itens comprados</span>
               <span><b>{Math.max(0, state.path.length - 1)}</b> células no trajeto</span>
+              <span><b>{state.hintedCellKeys.length}</b> letras compradas</span>
+              <span><b>{state.creditsEarned}</b> créditos ganhos</span>
             </div>
             <button type="button" onClick={() => setSummaryOpen(false)}>Revelar atlas completo</button>
             <small>Uma nova expedição nasce amanhã, no horário de São Paulo.</small>

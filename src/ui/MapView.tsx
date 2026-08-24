@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FocusEvent as ReactFocusEvent, type PointerEvent as ReactPointerEvent, type WheelEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type WheelEvent } from "react";
 
 import {
   isCoordinateRevealed,
@@ -11,15 +11,13 @@ import {
   parseCoordinateKey,
   type Coordinate,
   type DailyMap,
+  type ItemType,
   type PlacedWord,
-  type PowerupType,
 } from "../generation/types.js";
-import { BIOME_DEFINITIONS, POWERUP_DEFINITIONS } from "../config/game.js";
+import { BIOME_DEFINITIONS, ITEM_DEFINITIONS } from "../config/game.js";
 import { sketchBlob, sketchRect } from "../render/sketch.js";
 import { BiomeAtlas } from "./BiomeAtlas.js";
 import { FogChart } from "./FogChart.js";
-import { PowerupGlyph } from "./PowerupGlyph.js";
-import { POWERUP_ART } from "./powerup-icons.js";
 import { SketchFrame } from "./SketchFrame.js";
 
 const CELL = 34;
@@ -35,7 +33,9 @@ interface MapViewProps {
   selectedWordId: string | null;
   activeCellKey: string | null;
   availableWordIds: Set<string>;
+  armedTargeting: (typeof ITEM_DEFINITIONS)[ItemType]["targeting"] | null;
   onCellClick: (position: Coordinate, words: PlacedWord[]) => void;
+  onMapClick: (position: Coordinate) => void;
 }
 
 function KeyIcon({ x, y }: Coordinate) {
@@ -58,77 +58,27 @@ function ExitIcon({ x, y, unlocked }: Coordinate & { unlocked: boolean }) {
   );
 }
 
-interface PowerupIconProps extends Coordinate {
-  id: string;
-  powerupType: PowerupType;
-  underLetter: boolean;
-  onShowTooltip: (
-    event: ReactPointerEvent<SVGGElement> | ReactFocusEvent<SVGGElement>,
-    powerupType: PowerupType,
-  ) => void;
-  onHideTooltip: () => void;
-  onActivate: () => void;
-}
-
-function PowerupIcon({
-  x,
-  y,
-  id,
-  powerupType,
-  underLetter,
-  onShowTooltip,
-  onHideTooltip,
-  onActivate,
-}: PowerupIconProps) {
-  const definition = POWERUP_DEFINITIONS[powerupType];
-  const art = POWERUP_ART[powerupType];
-  // Com letra na célula, a letra manda: o powerup encolhe para um selo de canto.
-  const paths = underLetter ? art.mark : art.full;
-  const scale = underLetter ? 0.72 : 1;
-  const offset = underLetter
-    ? { x: CELL - 12.6, y: 1.4 }
-    : { x: (CELL - 2) / 2 - 12, y: (CELL - 2) / 2 - 12 };
-
+function CoinIcon({ x, y }: Coordinate) {
   return (
-    <g
-      className={`map-object powerup-object ${underLetter ? "is-mark" : "is-full"}`}
-      transform={`translate(${x * CELL} ${y * CELL})`}
-      data-powerup-id={id}
-      data-powerup-type={powerupType}
-      role="button"
-      tabIndex={0}
-      aria-label={`${definition.name}: ${definition.description}`}
-      onPointerEnter={(event) => onShowTooltip(event, powerupType)}
-      onPointerMove={(event) => onShowTooltip(event, powerupType)}
-      onPointerLeave={onHideTooltip}
-      onFocus={(event) => onShowTooltip(event, powerupType)}
-      onBlur={onHideTooltip}
-      onKeyDown={(event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        onHideTooltip();
-        onActivate();
-      }}
-      onClick={() => {
-        onHideTooltip();
-        onActivate();
-      }}
-    >
-      {underLetter ? (
-        <circle className="powerup-badge" cx={CELL - 8} cy={6} r="6.6" />
-      ) : (
-        <circle className="powerup-halo" cx={(CELL - 2) / 2} cy={(CELL - 2) / 2} r="13" />
-      )}
-      <g className="powerup-art" transform={`translate(${offset.x} ${offset.y}) scale(${scale})`}>
-        {paths.map((path, index) => (
-          <path key={`${id}-${index}`} d={path} />
-        ))}
-      </g>
+    <g className="map-object coin-object" transform={`translate(${x * CELL} ${y * CELL})`}>
+      <title>Moeda</title>
+      <circle cx="16" cy="16" r="8.5" />
+      <circle className="coin-rim" cx="16" cy="16" r="5.6" />
+      <path d="M16 12.4v7.2M14 14.2h3.4a1.6 1.6 0 0 1 0 3.2H14" />
     </g>
   );
 }
 
-export function MapView({ map, state, selectedWordId, activeCellKey, availableWordIds, onCellClick }: MapViewProps) {
+export function MapView({
+  map,
+  state,
+  selectedWordId,
+  activeCellKey,
+  availableWordIds,
+  armedTargeting,
+  onCellClick,
+  onMapClick,
+}: MapViewProps) {
   const width = (map.bounds.maxX - map.bounds.minX + 1) * CELL;
   const height = (map.bounds.maxY - map.bounds.minY + 1) * CELL;
   const mapCenter = {
@@ -144,11 +94,6 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
     moved: boolean;
   } | null>(null);
   const suppressClick = useRef(false);
-  const [powerupTooltip, setPowerupTooltip] = useState<{
-    powerupType: PowerupType;
-    clientX: number;
-    clientY: number;
-  } | null>(null);
   const cellIndex = useMemo(() => {
     const index = new Map<string, { position: Coordinate; letter: string; words: PlacedWord[] }>();
     for (const word of map.words) {
@@ -205,9 +150,23 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
     }
     return detailed;
   }, [availableWordIds, map.words, state]);
+  // A mira só destaca quando o alvo é uma casa ou uma palavra; a Luneta aceita
+  // qualquer ponto e destacar tudo seria o mesmo que não destacar nada.
+  const aiming = armedTargeting === "cell" || armedTargeting === "word";
   const cellViews = cellIndex.map(([key, cell], index) => ({
     key,
     cell,
+    aimTarget:
+      aiming &&
+      cell.words.some(
+        (word) =>
+          availableWordIds.has(word.id) &&
+          !solved.has(word.id) &&
+          (armedTargeting === "cell"
+            ? !state.ink[key]
+            : !state.simplifiedWordIds.includes(word.id)),
+      ),
+    hinted: state.hintedCellKeys.includes(key),
     cellSolved: cell.words.some((word) => solved.has(word.id)),
     detailed: cell.words.some((word) => detailedWordIds.has(word.id)),
     selected: cell.words.some((word) => word.id === selectedWordId),
@@ -290,6 +249,18 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
     }, 0);
   }
 
+  /**
+   * A Luneta é mirada: abre a névoa onde o ponteiro está, e não só sobre uma
+   * casa. A matriz de tela do SVG converte o clique já com zoom e pan aplicados.
+   */
+  function handleMapClick(event: ReactMouseEvent<SVGSVGElement>) {
+    if (suppressClick.current || armedTargeting !== "map") return;
+    const matrix = event.currentTarget.getScreenCTM();
+    if (!matrix) return;
+    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+    onMapClick({ x: Math.floor(point.x / CELL), y: Math.floor(point.y / CELL) });
+  }
+
   function handleWheel(event: WheelEvent<SVGSVGElement>) {
     event.preventDefault();
     zoomBy(event.deltaY < 0 ? 0.25 : -0.25);
@@ -331,7 +302,7 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
   return (
     <div className="atlas-frame">
       <svg
-        className="atlas"
+        className={`atlas ${aiming ? "is-aiming" : ""}`.trim()}
         viewBox={viewBox}
         role="img"
         aria-label="Mapa de palavras cruzadas do dia"
@@ -339,6 +310,7 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onClick={handleMapClick}
         onWheel={handleWheel}
       >
         <defs>
@@ -498,7 +470,7 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
         </g>
 
         <g className="crossword-cells">
-          {cellViews.map(({ key, cell, cellSolved, detailed, selected, available, rotation }) => {
+          {cellViews.map(({ key, cell, cellSolved, detailed, selected, available, aimTarget, rotation }) => {
             return (
               <g
                 key={key}
@@ -509,10 +481,14 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
                   selected ? "is-selected" : "",
                   selected && key === activeCellKey ? "is-active" : "",
                   available ? "is-available" : "",
+                  aimTarget ? "is-target" : "",
                 ].join(" ")}
                 transform={`translate(${cell.position.x * CELL} ${cell.position.y * CELL}) rotate(${rotation})`}
                 onClick={() => {
-                  if (!suppressClick.current) onCellClick(cell.position, cell.words);
+                  // Com a Luneta armada o clique sobe para o SVG, que mira em
+                  // qualquer ponto; tratá-lo aqui cobraria o item duas vezes.
+                  if (suppressClick.current || armedTargeting === "map") return;
+                  onCellClick(cell.position, cell.words);
                 }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
@@ -531,7 +507,7 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
         </g>
 
         <g className="cell-letters" aria-hidden="true">
-          {cellViews.map(({ key, cell, detailed, cellSolved, value, rotation }) => {
+          {cellViews.map(({ key, cell, detailed, cellSolved, hinted, value, rotation }) => {
             if (!detailed || !value) return null;
             return (
               <text
@@ -539,7 +515,7 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
                 x={cell.position.x * CELL + (CELL - 2) / 2}
                 y={cell.position.y * CELL + CELL * .68}
                 transform={`rotate(${rotation} ${cell.position.x * CELL + CELL / 2} ${cell.position.y * CELL + CELL / 2})`}
-                className={cellSolved || state.status === "won" ? "ink-letter" : "pencil-letter"}
+                className={`${cellSolved || state.status === "won" ? "ink-letter" : "pencil-letter"}${hinted ? " is-hinted" : ""}`}
               >
                 {value}
               </text>
@@ -556,30 +532,18 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
             if (!visible || collected.has(object.id)) return null;
             if (object.type === "key") return <KeyIcon key={object.id} {...object.position} />;
             if (object.type === "exit") {
-              return <ExitIcon key={object.id} {...object.position} unlocked={state.keysCollected >= map.objective.keysRequired} />;
+              return (
+                <ExitIcon
+                  key={object.id}
+                  {...object.position}
+                  unlocked={
+                    map.objective.kind === "keys-and-exit" &&
+                    state.keysCollected >= map.objective.keysRequired
+                  }
+                />
+              );
             }
-            if (object.type !== "powerup") return null;
-            const objectKey = coordinateKey(object.position);
-            const wordsAtObject = cellIndex.find(([key]) => key === objectKey)?.[1].words ?? [];
-            return (
-              <PowerupIcon
-                key={object.id}
-                {...object.position}
-                id={object.id}
-                powerupType={object.powerupType}
-                underLetter={Boolean(state.ink[objectKey] ?? state.pencil[objectKey])}
-                onShowTooltip={(event, powerupType) => {
-                  const anchor = event.currentTarget.getBoundingClientRect();
-                  setPowerupTooltip({
-                    powerupType,
-                    clientX: Math.max(14, Math.min(anchor.right + 12, window.innerWidth - 274)),
-                    clientY: Math.max(14, Math.min(anchor.bottom + 10, window.innerHeight - 104)),
-                  });
-                }}
-                onHideTooltip={() => setPowerupTooltip(null)}
-                onActivate={() => onCellClick(object.position, wordsAtObject)}
-              />
-            );
+            return <CoinIcon key={object.id} {...object.position} />;
           })}
         </g>
 
@@ -613,7 +577,9 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
           É o lugar natural da legenda depois que tudo virou desenho. */}
       <div className="map-cartouche has-sketch-frame" aria-label="Legenda do mapa">
         <SketchFrame seed={`cartucho:${map.id}`} roughness={2} />
-        <strong>Carta de {map.date.split("-").reverse().join(" · ")}</strong>
+        <strong>
+          {map.mode === "daily" ? `Carta de ${map.date.split("-").reverse().join(" · ")}` : "Carta livre"}
+        </strong>
         <ul>
           {presentBiomes.map((biome) => (
             <li key={biome}>
@@ -624,19 +590,6 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
         </ul>
         <small>Além da névoa, o mapa segue por desbravar.</small>
       </div>
-      {powerupTooltip ? (
-        <div
-          className="map-powerup-tooltip"
-          role="tooltip"
-          style={{ left: powerupTooltip.clientX, top: powerupTooltip.clientY }}
-        >
-          <PowerupGlyph powerupType={powerupTooltip.powerupType} size={26} />
-          <span>
-            <strong>{POWERUP_DEFINITIONS[powerupTooltip.powerupType].name}</strong>
-            {POWERUP_DEFINITIONS[powerupTooltip.powerupType].description}
-          </span>
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -1,42 +1,86 @@
 import { useEffect, useState } from "react";
 
 import type { DailyMap } from "../generation/types.js";
-import { loadDailyMap, loadDebugMap } from "./api.js";
+import { Archive, type ArchiveStatus } from "./Archive.js";
+import { loadArchive, loadDailyMap, loadDailyMapByDate, loadFreeMap, type ArchiveEntry } from "./api.js";
 import { GameScreen, loadSavedState } from "./GameScreen.js";
 import { playSound } from "./sfx.js";
 import { SketchFrame } from "./SketchFrame.js";
 
 type AppStage = "landing" | "game";
 
-function queryDate(): string | undefined {
-  if (location.pathname !== "/debug") return undefined;
-  return new URLSearchParams(location.search).get("date") ?? undefined;
+type Route =
+  | { kind: "today" }
+  | { kind: "date"; date: string }
+  | { kind: "seed"; seed: string };
+
+function currentRoute(): Route {
+  const params = new URLSearchParams(location.search);
+  const seed = params.get("seed");
+  if (seed?.trim()) return { kind: "seed", seed: seed.trim() };
+  const date = params.get("date");
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) return { kind: "date", date };
+  return { kind: "today" };
 }
 
-function querySeed(): string | undefined {
-  if (location.pathname !== "/debug") return undefined;
-  return new URLSearchParams(location.search).get("seed") ?? undefined;
+const SEED_HEADS = [
+  "nebulosa",
+  "duna",
+  "farol",
+  "recife",
+  "cume",
+  "vereda",
+  "estuário",
+  "penhasco",
+  "clareira",
+  "arquipélago",
+];
+const SEED_TAILS = ["azul", "quieta", "antiga", "perdida", "lenta", "salgada", "aberta", "funda"];
+
+/** Sorteio de interface, não de jogo: a regra de PRNG determinístico vale para gameplay. */
+function rollSeed(): string {
+  const head = SEED_HEADS[Math.floor(Math.random() * SEED_HEADS.length)];
+  const tail = SEED_TAILS[Math.floor(Math.random() * SEED_TAILS.length)];
+  return `${head}-${tail}-${Math.floor(Math.random() * 90) + 10}`;
+}
+
+function statusOf(mapId: string): ArchiveStatus {
+  try {
+    const raw = localStorage.getItem(`cruzaverso:save:${mapId}`);
+    if (!raw) return "new";
+    return (JSON.parse(raw) as { status?: string }).status === "won" ? "won" : "playing";
+  } catch {
+    return "new";
+  }
+}
+
+function goTo(params: Record<string, string>) {
+  const url = new URL(location.href);
+  url.search = "";
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  location.assign(url);
 }
 
 export function App() {
+  const [route] = useState<Route>(currentRoute);
   const [map, setMap] = useState<DailyMap | null>(null);
   const [stage, setStage] = useState<AppStage>("landing");
   const [error, setError] = useState<string | null>(null);
-  const [debugDate, setDebugDate] = useState(queryDate() ?? "");
-  const [debugSeed, setDebugSeed] = useState(querySeed() ?? "");
-  const debugAvailable = location.pathname === "/debug" && import.meta.env.DEV;
+  const [entries, setEntries] = useState<ArchiveEntry[]>([]);
+  const [seed, setSeed] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    const requestedSeed = querySeed();
-    const requestedDate = queryDate();
-    const loader = debugAvailable && (requestedSeed || requestedDate)
-      ? loadDebugMap({ seed: requestedSeed, date: requestedDate })
-      : loadDailyMap();
+    const loader =
+      route.kind === "seed"
+        ? loadFreeMap(route.seed)
+        : route.kind === "date"
+          ? loadDailyMapByDate(route.date)
+          : loadDailyMap();
     void loader
-      .then((dailyMap) => {
-        if (!cancelled) setMap(dailyMap);
+      .then((loaded) => {
+        if (!cancelled) setMap(loaded);
       })
       .catch((reason: unknown) => {
         if (!cancelled) setError(reason instanceof Error ? reason.message : "O atlas não respondeu.");
@@ -44,7 +88,17 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [debugAvailable]);
+  }, [route]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadArchive().then((loaded) => {
+      if (!cancelled) setEntries(loaded);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function openGame() {
     if (!map) return;
@@ -54,21 +108,25 @@ export function App() {
     setStage("game");
   }
 
-  function openDebugSeed() {
-    if (!debugSeed.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(debugDate)) return;
-    const url = new URL(location.href);
-    url.searchParams.delete("date");
-    url.searchParams.delete("seed");
-    if (debugSeed.trim()) url.searchParams.set("seed", debugSeed.trim());
-    else url.searchParams.set("date", debugDate);
-    location.assign(url);
-  }
-
   if (stage === "game" && map) {
     return <GameScreen map={map} initialState={loadSavedState(map)} onBack={() => setStage("landing")} />;
   }
 
   const saved = map ? loadSavedState(map) : null;
+  const isFree = map?.mode === "free";
+  const coins = map ? map.objects.filter((object) => object.type === "coin").length : 0;
+  const startLabel = !map
+    ? route.kind === "seed"
+      ? "Desenhando um mundo novo…"
+      : "Desenhando o atlas…"
+    : saved?.status === "won"
+      ? "Rever expedição"
+      : saved
+        ? "Continuar expedição"
+        : isFree
+          ? "Explorar este mundo"
+          : "Desbravar o mapa";
+
   return (
     <main className="landing-shell">
       <div className="landing-atlas" aria-hidden="true">
@@ -87,35 +145,93 @@ export function App() {
         <p className="tagline">Um novo mundo se cruza todos os dias.</p>
 
         <div className="expedition-ticket">
-          <span><small>EXPEDIÇÃO DE HOJE</small><strong>Mapa Medium</strong></span>
+          {isFree ? (
+            <>
+              <span>
+                <small>EXPEDIÇÃO LIVRE</small>
+                <strong>{route.kind === "seed" ? route.seed : "seed"}</strong>
+              </span>
+              <span className="ticket-divider" />
+              <span>
+                <small>MISSÃO</small>
+                <strong>{coins} moedas, sem fim</strong>
+              </span>
+            </>
+          ) : (
+            <>
+              <span>
+                <small>{route.kind === "date" ? "EXPEDIÇÃO DE" : "EXPEDIÇÃO DE HOJE"}</small>
+                <strong>{route.kind === "date" ? route.date.split("-").reverse().join("/") : "Mapa Medium"}</strong>
+              </span>
+              <span className="ticket-divider" />
+              <span>
+                <small>MISSÃO</small>
+                <strong>2 chaves + saída</strong>
+              </span>
+            </>
+          )}
           <span className="ticket-divider" />
-          <span><small>MISSÃO</small><strong>2 chaves + saída</strong></span>
-          <span className="ticket-divider" />
-          <span><small>PALAVRAS</small><strong>{map ? map.words.length : "—"}</strong></span>
+          <span>
+            <small>PALAVRAS</small>
+            <strong>{map ? map.words.length : "—"}</strong>
+          </span>
         </div>
 
         {error ? (
-          <div className="landing-error"><strong>O mapa ficou preso na névoa.</strong><span>{error}</span><button type="button" onClick={() => location.reload()}>Tentar novamente</button></div>
+          <div className="landing-error">
+            <strong>O mapa ficou preso na névoa.</strong>
+            <span>{error}</span>
+            <button type="button" onClick={() => goTo({})}>
+              Voltar para hoje
+            </button>
+          </div>
         ) : (
           <button className="start-button has-sketch-frame" type="button" disabled={!map} onClick={openGame}>
             <SketchFrame seed="botao-desbravar" roughness={1.4} />
-            <span>{!map ? "Desenhando o atlas…" : saved?.status === "won" ? "Rever expedição de hoje" : saved ? "Continuar expedição" : "Desbravar o mapa"}</span>
+            <span>{startLabel}</span>
             <i>→</i>
           </button>
         )}
+
+        {route.kind === "today" ? null : (
+          <button className="text-button" type="button" onClick={() => goTo({})}>
+            ← voltar para a expedição de hoje
+          </button>
+        )}
+
         <p className="landing-note">Sem derrota, sem pressa. Seu tempo ativo aparece apenas no fim.</p>
 
-        {debugAvailable ? (
-          <div className="debug-seed">
-            <label htmlFor="debug-date">Ferramenta local · data ou seed arbitrária</label>
-            <input id="debug-date" type="date" value={debugDate} onChange={(event) => setDebugDate(event.target.value)} />
-            <input aria-label="Seed arbitrária" placeholder="ex.: nebulosa-42" value={debugSeed} onChange={(event) => setDebugSeed(event.target.value)} />
-            <button type="button" onClick={openDebugSeed}>Gerar</button>
-            {map ? <output>{map.report.words} palavras · {map.report.cycles} ciclos · diversidade {map.report.routeDiversity} · {map.report.candidateReports.length} candidatos</output> : null}
+        <div className="free-run">
+          <label htmlFor="seed-input">ou explore um mundo livre</label>
+          <div className="free-run-line">
+            <input
+              id="seed-input"
+              value={seed}
+              placeholder="ex.: nebulosa-42"
+              maxLength={40}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => setSeed(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && seed.trim()) goTo({ seed: seed.trim() });
+              }}
+            />
+            <button type="button" aria-label="Sortear uma seed" title="Sortear uma seed" onClick={() => setSeed(rollSeed())}>
+              🎲
+            </button>
           </div>
-        ) : null}
+          <button type="button" disabled={!seed.trim()} onClick={() => goTo({ seed: seed.trim() })}>
+            Gerar expedição livre <i>→</i>
+          </button>
+          <small>Sem chave e sem saída: só moedas, palavras e o mapa. Um mundo inédito leva alguns segundos.</small>
+        </div>
+
+        <Archive entries={entries} statusOf={statusOf} onPick={(date) => goTo({ date })} />
       </section>
-      <footer className="landing-footer"><span>PT-BR</span><span>Seed diária · America/São_Paulo</span></footer>
+      <footer className="landing-footer">
+        <span>PT-BR</span>
+        <span>Seed diária · America/São_Paulo</span>
+      </footer>
     </main>
   );
 }
