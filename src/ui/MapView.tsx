@@ -34,6 +34,8 @@ interface MapViewProps {
   activeCellKey: string | null;
   availableWordIds: Set<string>;
   wordNumbers: Map<string, number>;
+  hoveredWordId: string | null;
+  onHoverWord: (wordId: string | null) => void;
   armedTargeting: (typeof ITEM_DEFINITIONS)[ItemType]["targeting"] | null;
   onCellClick: (position: Coordinate, words: PlacedWord[]) => void;
 }
@@ -76,6 +78,8 @@ export function MapView({
   activeCellKey,
   availableWordIds,
   wordNumbers,
+  hoveredWordId,
+  onHoverWord,
   armedTargeting,
   onCellClick,
 }: MapViewProps) {
@@ -165,6 +169,12 @@ export function MapView({
     return byStart;
   }, [map, wordNumbers]);
 
+  /** Numa casa de cruzamento, acende a palavra que o jogador pode abrir. */
+  function wordToHighlight(words: readonly PlacedWord[]): string | null {
+    const aberta = words.find((word) => availableWordIds.has(word.id) && !solved.has(word.id));
+    return (aberta ?? words[0])?.id ?? null;
+  }
+
   const cellViews = cellIndex.map(([key, cell], index) => ({
     key,
     cell,
@@ -191,6 +201,7 @@ export function MapView({
     cellSolved: cell.words.some((word) => solved.has(word.id)),
     detailed: cell.words.some((word) => detailedWordIds.has(word.id)),
     selected: cell.words.some((word) => word.id === selectedWordId),
+    hovered: hoveredWordId !== null && cell.words.some((word) => word.id === hoveredWordId),
     available: cell.words.some((word) => availableWordIds.has(word.id)),
     value: state.status === "won"
       ? cell.letter
@@ -316,6 +327,7 @@ export function MapView({
         role="img"
         aria-label="Mapa de palavras cruzadas do dia"
         onPointerDown={handlePointerDown}
+        onPointerLeave={() => onHoverWord(null)}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
@@ -470,6 +482,7 @@ export function MapView({
                   availableWordIds.has(word.id) ? "is-available" : "",
                   solved.has(word.id) ? "is-solved" : "",
                   selectedWordId === word.id ? "is-selected" : "",
+                  hoveredWordId === word.id ? "is-hovered" : "",
                 ].join(" ")}
                 d={wordOutlines.get(word.id)}
               />
@@ -478,7 +491,7 @@ export function MapView({
         </g>
 
         <g className="crossword-cells">
-          {cellViews.map(({ key, cell, cellSolved, detailed, selected, available, aimTarget, rotation }) => {
+          {cellViews.map(({ key, cell, cellSolved, detailed, selected, available, aimTarget, hovered, rotation }) => {
             return (
               <g
                 key={key}
@@ -490,11 +503,14 @@ export function MapView({
                   selected && key === activeCellKey ? "is-active" : "",
                   available ? "is-available" : "",
                   aimTarget ? "is-target" : "",
+                  hovered ? "is-hovered" : "",
                 ].join(" ")}
                 transform={`translate(${cell.position.x * CELL} ${cell.position.y * CELL}) rotate(${rotation})`}
+                onPointerEnter={() => {
+                  if (!detailed) return;
+                  onHoverWord(wordToHighlight(cell.words));
+                }}
                 onClick={() => {
-                  // Com a Luneta armada o clique sobe para o SVG, que mira em
-                  // qualquer ponto; tratá-lo aqui cobraria o item duas vezes.
                   if (suppressClick.current) return;
                   onCellClick(cell.position, cell.words);
                 }}

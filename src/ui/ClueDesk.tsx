@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 import { normalizeGridAnswer } from "../content/catalog.js";
 import type { GameState } from "../game/state.js";
 import { cellsForWord, coordinateKey, type PlacedWord } from "../generation/types.js";
@@ -7,6 +9,8 @@ interface ClueDeskProps {
   state: GameState;
   wordsAvailable: PlacedWord[];
   wordNumbers: Map<string, number>;
+  hoveredWordId: string | null;
+  onHoverWord: (wordId: string | null) => void;
   selectedWord: PlacedWord | null;
   selectedWordId: string | null;
   activeCellIndex: number;
@@ -21,6 +25,8 @@ export function ClueDesk({
   state,
   wordsAvailable,
   wordNumbers,
+  hoveredWordId,
+  onHoverWord,
   selectedWord,
   selectedWordId,
   activeCellIndex,
@@ -30,12 +36,25 @@ export function ClueDesk({
   onWriteLetter,
   onGuess,
 }: ClueDeskProps) {
+  const indexRef = useRef<HTMLDivElement>(null);
+
+  // A rolagem automática só serve ao realce que vem do mapa. Rolar enquanto o
+  // ponteiro está sobre a própria lista move outra entrada para debaixo dele,
+  // que reacende o realce e rola de novo — laço que trava a aba.
+  useEffect(() => {
+    const lista = indexRef.current;
+    if (!lista || !hoveredWordId || lista.matches(":hover")) return;
+    lista
+      .querySelector(`button[data-word-id="${hoveredWordId}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [hoveredWordId]);
+
   const selectedCells = selectedWord ? cellsForWord(selectedWord) : [];
   const selectedSolved = selectedWord ? state.solvedWordIds.includes(selectedWord.id) : false;
 
   return (
     <>
-      <div className="clue-index">
+      <div className="clue-index" ref={indexRef}>
         {(
           [
             ["vertical", "VERTICAIS", "↓"],
@@ -62,8 +81,10 @@ export function ClueDesk({
                           type="button"
                           data-word-id={word.id}
                           data-word-number={wordNumbers.get(word.id)}
-                          className={`${word.id === selectedWordId ? "active" : ""} ${wordSolved ? "solved" : ""}`}
+                          className={`${word.id === selectedWordId ? "active" : ""} ${wordSolved ? "solved" : ""} ${word.id === hoveredWordId ? "hovered" : ""}`}
                           onClick={() => onSelectWord(word.id)}
+                          onPointerEnter={() => onHoverWord(word.id)}
+                          onPointerLeave={() => onHoverWord(null)}
                           title={wordSolved ? word.answer : word.clues.normal}
                         >
                           <b>{wordNumbers.get(word.id)}</b>

@@ -80,6 +80,9 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   const [state, setState] = useState<GameState>(() => initialState ?? createInitialGameState(map));
   const [selectedWordId, setSelectedWordId] = useState<string | null>(null);
   const [activeCellIndex, setActiveCellIndex] = useState(0);
+  // Realce de leitura: o hover acende, o clique é que seleciona. Trocar a
+  // seleção no hover mandaria as letras para a palavra sob o ponteiro.
+  const [hoveredWordId, setHoveredWordId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(state.status === "won");
   const [soundsEnabled, setSoundsEnabled] = useState(
@@ -552,6 +555,8 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
           availableWordIds={availableIds}
           wordNumbers={wordNumbers}
           armedTargeting={targeting}
+          hoveredWordId={hoveredWordId}
+          onHoverWord={setHoveredWordId}
           onCellClick={handleCellClick}
         />
 
@@ -559,7 +564,9 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
           <ClueDesk
             state={state}
             wordsAvailable={wordsAvailable}
-          wordNumbers={wordNumbers}
+            wordNumbers={wordNumbers}
+            hoveredWordId={hoveredWordId}
+            onHoverWord={setHoveredWordId}
             selectedWord={selectedWord}
             selectedWordId={selectedWordId}
             activeCellIndex={activeCellIndex}

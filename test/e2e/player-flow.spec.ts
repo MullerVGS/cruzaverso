@@ -432,3 +432,37 @@ test("a luneta libera uma rota avistada e ela passa a aceitar letras", async ({ 
     await page.screenshot({ path: testInfo.outputPath("luneta-libera-rota.png"), fullPage: true });
   }
 });
+
+test("o ponteiro acende a palavra nos dois lados sem roubar a seleção", async ({ page, request }) => {
+  const dailyResponse = await request.get("/api/daily");
+  const { map } = (await dailyResponse.json()) as { map: DailyMap };
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /desbravar|continuar|rever/i }).click();
+
+  const entrada = page.locator("#answer-input");
+  const selecionada = (await entrada.getAttribute("data-selected-word-id")) as string;
+  const outra = page.locator(`.clue-column button:not([data-word-id="${selecionada}"])`).first();
+  const idOutra = (await outra.getAttribute("data-word-id")) as string;
+
+  // Da lateral para o mapa.
+  await outra.hover();
+  await expect(page.locator(`[data-word-frame="${idOutra}"]`)).toHaveClass(/is-hovered/);
+  await expect(page.locator(".crossword-cell.is-hovered").first()).toBeAttached();
+  // O teclado escreve na palavra selecionada: o hover não pode mexer nela, senão
+  // encostar o mouse no mapa manda as letras para a palavra errada.
+  await expect(entrada).toHaveAttribute("data-selected-word-id", selecionada);
+
+  // Do mapa para a lateral.
+  const casa = coordinateKey(map.words.find((word) => word.id === idOutra)!.start);
+  await page.locator(`[data-cell-key="${casa}"]`).hover();
+  const aceso = page.locator(".clue-column button.hovered");
+  await expect(aceso).toHaveCount(1);
+  const idAceso = await aceso.getAttribute("data-word-id");
+  await expect(page.locator(`[data-word-frame="${idAceso}"]`)).toHaveClass(/is-hovered/);
+  await expect(entrada).toHaveAttribute("data-selected-word-id", selecionada);
+
+  // O clique é que troca de fato.
+  await outra.click();
+  await expect(entrada).toHaveAttribute("data-selected-word-id", idOutra);
+});
