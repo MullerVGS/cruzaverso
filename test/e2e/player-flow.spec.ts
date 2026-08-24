@@ -293,3 +293,57 @@ test("a expedição livre é sandbox com moedas e o arquivo lista o que já saiu
   await expect(arquivo.first()).toBeVisible();
   await expect(arquivo.first().locator(".archive-status")).toContainText(/concluída|andamento|nova/);
 });
+
+test("o número da lista é o mesmo pintado na casa inicial do mapa", async ({ page, request }, testInfo) => {
+  const dailyResponse = await request.get("/api/daily");
+  const { map } = (await dailyResponse.json()) as { map: DailyMap };
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /desbravar|continuar|rever/i }).click();
+
+  const colunas = page.locator(".clue-column");
+  await expect(colunas).toHaveCount(2);
+  await expect(colunas.nth(0)).toContainText("VERTICAIS");
+  await expect(colunas.nth(1)).toContainText("HORIZONTAIS");
+
+  // Cada coluna só pode conter palavras da sua orientação.
+  for (const [indice, orientacao] of [[0, "vertical"], [1, "horizontal"]] as const) {
+    const ids = await colunas.nth(indice).locator("button").evaluateAll(
+      (botoes) => botoes.map((botao) => (botao as HTMLElement).dataset.wordId as string),
+    );
+    for (const id of ids) {
+      expect(map.words.find((word) => word.id === id)?.orientation).toBe(orientacao);
+    }
+  }
+
+  // É a correspondência com o mapa que faz o recurso existir: o número da lista
+  // tem que ser o mesmo desenhado na casa onde a palavra começa.
+  const entradas = page.locator(".clue-column button");
+  const total = await entradas.count();
+  expect(total).toBeGreaterThan(1);
+  for (let indice = 0; indice < total; indice += 1) {
+    const botao = entradas.nth(indice);
+    const numero = await botao.getAttribute("data-word-number");
+    const wordId = await botao.getAttribute("data-word-id");
+    const palavra = map.words.find((word) => word.id === wordId);
+    expect(palavra).toBeDefined();
+    await expect(
+      page.locator(`text[data-number-key="${coordinateKey(palavra!.start)}"]`),
+    ).toHaveText(numero as string);
+  }
+
+  // Uma vertical e uma horizontal que partem da mesma casa dividem o número.
+  const porCasa = new Map<string, Set<string>>();
+  for (let indice = 0; indice < total; indice += 1) {
+    const botao = entradas.nth(indice);
+    const wordId = (await botao.getAttribute("data-word-id")) as string;
+    const numero = (await botao.getAttribute("data-word-number")) as string;
+    const casa = coordinateKey(map.words.find((word) => word.id === wordId)!.start);
+    porCasa.set(casa, (porCasa.get(casa) ?? new Set()).add(numero));
+  }
+  for (const numeros of porCasa.values()) expect(numeros.size).toBe(1);
+
+  if (process.env.CAPTURE_UI === "true") {
+    await page.screenshot({ path: testInfo.outputPath("indice-de-rotas.png"), fullPage: true });
+  }
+});

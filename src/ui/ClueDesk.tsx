@@ -6,6 +6,7 @@ import { SketchFrame } from "./SketchFrame.js";
 interface ClueDeskProps {
   state: GameState;
   wordsAvailable: PlacedWord[];
+  wordNumbers: Map<string, number>;
   selectedWord: PlacedWord | null;
   selectedWordId: string | null;
   activeCellIndex: number;
@@ -19,6 +20,7 @@ interface ClueDeskProps {
 export function ClueDesk({
   state,
   wordsAvailable,
+  wordNumbers,
   selectedWord,
   selectedWordId,
   activeCellIndex,
@@ -33,24 +35,46 @@ export function ClueDesk({
 
   return (
     <>
-      <div className="clue-tabs" role="list" aria-label="Pistas disponíveis">
-        {wordsAvailable.map((word, index) => {
-          const wordSolved = state.solvedWordIds.includes(word.id);
+      <div className="clue-index">
+        {(
+          [
+            ["vertical", "VERTICAIS", "↓"],
+            ["horizontal", "HORIZONTAIS", "→"],
+          ] as const
+        ).map(([orientation, title, arrow]) => {
+          const column = wordsAvailable
+            .filter((word) => word.orientation === orientation)
+            .sort((left, right) => (wordNumbers.get(left.id) ?? 0) - (wordNumbers.get(right.id) ?? 0));
           return (
-            <button
-              type="button"
-              role="listitem"
-              key={word.id}
-              data-word-id={word.id}
-              className={`has-sketch-frame ${word.id === selectedWordId ? "active" : ""} ${wordSolved ? "solved" : ""}`}
-              onClick={() => onSelectWord(word.id)}
-              title={wordSolved ? word.answer : word.clues.normal}
-            >
-              <SketchFrame seed={`aba:${word.id}`} roughness={1.1} />
-              <b>{index + 1}</b>
-              <span>{wordSolved ? word.answer : `${word.gridAnswer.length} letras`}</span>
-              <i>{word.orientation === "horizontal" ? "→" : "↓"}</i>
-            </button>
+            <div className="clue-column" key={orientation}>
+              <h3>
+                {title} <i>{arrow}</i>
+              </h3>
+              {column.length === 0 ? (
+                <p className="clue-column-empty">nenhuma por enquanto</p>
+              ) : (
+                <ul role="list">
+                  {column.map((word) => {
+                    const wordSolved = state.solvedWordIds.includes(word.id);
+                    return (
+                      <li key={word.id}>
+                        <button
+                          type="button"
+                          data-word-id={word.id}
+                          data-word-number={wordNumbers.get(word.id)}
+                          className={`${word.id === selectedWordId ? "active" : ""} ${wordSolved ? "solved" : ""}`}
+                          onClick={() => onSelectWord(word.id)}
+                          title={wordSolved ? word.answer : word.clues.normal}
+                        >
+                          <b>{wordNumbers.get(word.id)}</b>
+                          <span>{wordSolved ? word.answer : `${word.gridAnswer.length} letras`}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           );
         })}
       </div>
@@ -86,7 +110,7 @@ export function ClueDesk({
             }}
           >
             <label htmlFor="answer-input">
-              {selectedWord.orientation === "horizontal" ? "Horizontal" : "Vertical"}
+              {`${wordNumbers.get(selectedWord.id) ?? ""} ${selectedWord.orientation === "horizontal" ? "→ Horizontal" : "↓ Vertical"}`}
               {` · ${selectedWord.gridAnswer.length} letras`}
             </label>
             <div

@@ -7,6 +7,7 @@ import {
   type GameAction,
   type GameState,
 } from "../game/state.js";
+import { numberWords } from "../game/numbering.js";
 import { entryIndexForWord, eraseAt, typeAt } from "../game/typing.js";
 import {
   cellsForWord,
@@ -103,6 +104,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   stateRef.current = state;
   const soundLevel = soundsEnabled ? soundVolume : 0;
 
+  const wordNumbers = useMemo(() => numberWords(map.words), [map]);
   const wordsAvailable = useMemo(() => availableWords(map, state), [map, state]);
   const availableIds = useMemo(
     () => new Set(wordsAvailable.map((word) => word.id)),
@@ -323,7 +325,15 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   }
 
   function cycleSelectedWord(direction: 1 | -1) {
-    const candidates = wordsAvailable.filter((word) => !stateRef.current.solvedWordIds.includes(word.id));
+    // Mesma ordem da lista de duas colunas: verticais, depois horizontais, cada
+    // uma pelo número. Percorrer a ordem do array contradiria o que está na tela.
+    const candidates = wordsAvailable
+      .filter((word) => !stateRef.current.solvedWordIds.includes(word.id))
+      .sort(
+        (left, right) =>
+          Number(left.orientation === "horizontal") - Number(right.orientation === "horizontal") ||
+          (wordNumbers.get(left.id) ?? 0) - (wordNumbers.get(right.id) ?? 0),
+      );
     if (candidates.length === 0) return;
     const currentIndex = candidates.findIndex((word) => word.id === selectedWordId);
     const nextIndex = currentIndex < 0
@@ -536,6 +546,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
           selectedWordId={selectedWordId}
           activeCellKey={activeCellKey}
           availableWordIds={availableIds}
+          wordNumbers={wordNumbers}
           armedTargeting={targeting}
           onCellClick={handleCellClick}
           onMapClick={(position) => applyArmedAt(position, [])}
@@ -550,6 +561,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
           <ClueDesk
             state={state}
             wordsAvailable={wordsAvailable}
+          wordNumbers={wordNumbers}
             selectedWord={selectedWord}
             selectedWordId={selectedWordId}
             activeCellIndex={activeCellIndex}

@@ -33,6 +33,7 @@ interface MapViewProps {
   selectedWordId: string | null;
   activeCellKey: string | null;
   availableWordIds: Set<string>;
+  wordNumbers: Map<string, number>;
   armedTargeting: (typeof ITEM_DEFINITIONS)[ItemType]["targeting"] | null;
   onCellClick: (position: Coordinate, words: PlacedWord[]) => void;
   onMapClick: (position: Coordinate) => void;
@@ -75,6 +76,7 @@ export function MapView({
   selectedWordId,
   activeCellKey,
   availableWordIds,
+  wordNumbers,
   armedTargeting,
   onCellClick,
   onMapClick,
@@ -153,6 +155,17 @@ export function MapView({
   // A mira só destaca quando o alvo é uma casa ou uma palavra; a Luneta aceita
   // qualquer ponto e destacar tudo seria o mesmo que não destacar nada.
   const aiming = armedTargeting === "cell" || armedTargeting === "word";
+  // O número mora na casa em que a palavra começa; casa compartilhada por uma
+  // vertical e uma horizontal carrega um número só.
+  const numberByStartKey = useMemo(() => {
+    const byStart = new Map<string, number>();
+    for (const word of map.words) {
+      const number = wordNumbers.get(word.id);
+      if (number !== undefined) byStart.set(coordinateKey(word.start), number);
+    }
+    return byStart;
+  }, [map, wordNumbers]);
+
   const cellViews = cellIndex.map(([key, cell], index) => ({
     key,
     cell,
@@ -502,6 +515,24 @@ export function MapView({
               >
                 <path d={cellOutlines.get(key)} />
               </g>
+            );
+          })}
+        </g>
+
+        <g className="cell-numbers" aria-hidden="true">
+          {cellViews.map(({ key, cell, detailed }) => {
+            const number = numberByStartKey.get(key);
+            // Numerar casa na névoa entregaria onde existe palavra por descobrir.
+            if (!detailed || number === undefined) return null;
+            return (
+              <text
+                key={`numero-${key}`}
+                data-number-key={key}
+                x={cell.position.x * CELL + 3.6}
+                y={cell.position.y * CELL + 10.2}
+              >
+                {number}
+              </text>
             );
           })}
         </g>
