@@ -27,6 +27,7 @@ export type ContentEntry = z.output<typeof contentEntrySchema> & {
 };
 
 export interface ContentCatalog {
+  datasetVersion: string;
   entries: ContentEntry[];
   byBiome: Record<BiomeId, ContentEntry[]>;
   findCrossings(letter: string, position: number): ContentEntry[];
@@ -41,7 +42,10 @@ export function normalizeGridAnswer(answer: string): string {
     .replace(/[^A-Z]/g, "");
 }
 
-export function buildContentCatalog(input: ContentEntryInput[]): ContentCatalog {
+export function buildContentCatalog(
+  input: ContentEntryInput[],
+  datasetVersion = "unversioned",
+): ContentCatalog {
   const seenAnswers = new Map<string, string>();
   const byBiome: Record<BiomeId, ContentEntry[]> = {
     cotidiano: [],
@@ -89,6 +93,7 @@ export function buildContentCatalog(input: ContentEntryInput[]): ContentCatalog 
   }
 
   return {
+    datasetVersion,
     entries,
     byBiome,
     findCrossings(letter, position) {

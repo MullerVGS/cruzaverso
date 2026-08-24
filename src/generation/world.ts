@@ -311,7 +311,7 @@ function buildAttempt(
   const world: DailyWorld = {
     schemaVersion: 1,
     generatorVersion: "1.1.0",
-    datasetVersion: "curadoria-v2",
+    datasetVersion: catalog.datasetVersion,
     configVersion: "1.0.0",
     id: `${date}-g1-${seedFingerprint(seed)}`,
     date,
