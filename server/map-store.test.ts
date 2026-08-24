@@ -120,4 +120,21 @@ describe("artefato diário persistido", () => {
     expect(store.getDaily("2026-08-21")).toBeNull();
     store.close();
   }, GENERATION_TEST_TIMEOUT_MS);
+
+  it("o arquivo sobrevive a um bump de gerador", async () => {
+    // Sem isto o arquivo nasce vazio a cada bump: toda linha gravada fica com a
+    // versão antiga, some da lista e a data passada devolve 404.
+    const store = new MapStore(await mkdtemp(join(tmpdir(), "cruzaverso-bump-")));
+    store.getOrCreateDaily("2026-08-20");
+
+    const interno = store as unknown as { database: { prepare(sql: string): { run(...a: unknown[]): unknown } } };
+    interno.database
+      .prepare("UPDATE daily_artifacts SET generator_version = ? WHERE date = ?")
+      .run("0.9.0-antigo", "2026-08-20");
+
+    expect(store.listDaily(10, "2026-08-24")).toHaveLength(1);
+    const regerado = store.getDaily("2026-08-20");
+    expect(regerado?.world.generatorVersion).toBe(GENERATOR_VERSION);
+    store.close();
+  }, GENERATION_TEST_TIMEOUT_MS * 2);
 });

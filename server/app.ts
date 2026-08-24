@@ -79,7 +79,10 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     // A comparação de string basta porque o formato ISO é ordenável, e ela é o
     // que impede pedir a edição de amanhã antes da hora.
     if (params.data.date > canonicalDate()) return reply.code(404).send({ error: "not_found" });
-    const artifact = store.getDaily(params.data.date);
+    // Uma edição antiga pode precisar ser regerada por bump de versão, e isso
+    // custa segundos de CPU síncrona: serializar impede que duas regenerações
+    // simultâneas travem o dia de quem já está jogando.
+    const artifact = await gate.serialize(async () => store.getDaily(params.data.date));
     if (!artifact) return reply.code(404).send({ error: "not_found" });
     return { map: artifact.map };
   });

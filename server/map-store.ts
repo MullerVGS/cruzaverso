@@ -147,18 +147,28 @@ export class MapStore {
     return this.get(date) ?? { world, map };
   }
 
+  /**
+   * Uma edição já publicada continua jogável depois de um bump de versão: se a
+   * linha existe mas o artefato é de um gerador anterior, ela é regerada. Sem
+   * isso o arquivo nasce vazio a cada bump. A trava contra espiar o futuro é a
+   * existência da linha — data nunca publicada não gera nada.
+   */
   getDaily(date: string): DailyArtifact | null {
-    return this.get(date);
+    const published = this.database
+      .prepare("SELECT 1 FROM daily_artifacts WHERE date = ?")
+      .get(date);
+    if (!published) return null;
+    return this.getOrCreateDaily(date);
   }
 
   listDaily(limit: number, today: string): ArchiveEntry[] {
     const rows = this.database
       .prepare(
         `SELECT date, map_id, map_json FROM daily_artifacts
-         WHERE date <= ? AND generator_version = ? AND dataset_version = ?
+         WHERE date <= ?
          ORDER BY date DESC LIMIT ?`,
       )
-      .all(today, GENERATOR_VERSION, this.datasetVersion, limit) as Array<{
+      .all(today, limit) as Array<{
       date: string;
       map_id: string;
       map_json: string;
