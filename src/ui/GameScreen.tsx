@@ -484,7 +484,6 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
     localStorage.setItem("cruzaverso:tutorial-seen", "yes");
   }
 
-  const unsolvedAvailable = wordsAvailable.filter((word) => !state.solvedWordIds.includes(word.id));
   const coinsTotal = map.objects.filter((object) => object.type === "coin").length;
   const coinsCollected = map.objects.filter(
     (object) => object.type === "coin" && state.collectedObjectIds.includes(object.id),
@@ -534,6 +533,11 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
           </div>
         )}
         <div className="header-actions">
+          {map.objective.kind === "keys-and-exit" ? (
+            <span className="run-tally" title="Palavras em tinta">
+              ◧ {state.solvedWordIds.length}/{map.words.length}
+            </span>
+          ) : null}
           <span className="active-time" title="Tempo ativo nesta expedição">◷ {formatActiveTime(state.activeMs)}</span>
           <button className="icon-button has-sketch-frame" type="button" onClick={() => setSettingsOpen((open) => !open)} aria-label="Abrir ajustes"><SketchFrame seed="ajustes" roughness={1} />⚙</button>
         </div>
@@ -553,11 +557,6 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
         />
 
         <aside className="clue-desk">
-          <div className="desk-heading">
-            <span><small>DIÁRIO DE CAMPO</small><strong>{unsolvedAvailable.length} rotas na fronteira</strong></span>
-            <span className="solved-counter">{state.solvedWordIds.length}/{map.words.length}</span>
-          </div>
-
           <ClueDesk
             state={state}
             wordsAvailable={wordsAvailable}
