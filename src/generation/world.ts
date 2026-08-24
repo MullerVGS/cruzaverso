@@ -31,7 +31,7 @@ export interface GenerateWorldInput {
 }
 
 /** Versão do algoritmo; o bump afeta somente edições ainda não publicadas. */
-export const GENERATOR_VERSION = "3.0.0";
+export const GENERATOR_VERSION = "3.0.1";
 export const GENERATOR_CONFIG_VERSION = "2.0.0";
 
 const DEFAULT_CONFIG: WorldGenerationConfig = {
@@ -320,20 +320,34 @@ function buildAttempt(
   const field = createBiomeField(biomeField, biomeSites);
   const chunks = buildChunks(random.fork("chunks"), field, config.chunkCount);
   const originBiome = field.biomeAt(0, 0);
-  const centeredEntries = catalog.byBiome[originBiome].filter((entry) => {
-    const start = { x: -Math.floor(entry.gridAnswer.length / 2), y: 0 };
-    return majorityBiome(
+  // A palavra da origem herda o bioma que ela realmente ocupa, não o da casa
+  // (0,0): a maioria decide, e o bioma da origem pode ser uma ilha estreita
+  // demais para caber qualquer resposta. Quando ele não abriga nenhuma, o
+  // catálogo inteiro entra como reserva — sem isso a seed morre em 500.
+  const centeredBiome = (entry: ContentEntry): BiomeId =>
+    majorityBiome(
       field,
-      cellsForWord({ gridAnswer: entry.gridAnswer, orientation: "horizontal", start }),
-    ) === originBiome;
-  });
-  if (centeredEntries.length === 0) {
-    throw new Error(`Bioma ${originBiome} sem resposta central compatível`);
+      cellsForWord({
+        gridAnswer: entry.gridAnswer,
+        orientation: "horizontal",
+        start: { x: -Math.floor(entry.gridAnswer.length / 2), y: 0 },
+      }),
+    );
+  const centeredEntries = catalog.byBiome[originBiome].filter(
+    (entry) => centeredBiome(entry) === originBiome,
+  );
+  const fallbackEntries =
+    centeredEntries.length > 0
+      ? []
+      : catalog.entries.filter((entry) => entry.biomes.includes(centeredBiome(entry)));
+  const initialPool = centeredEntries.length > 0 ? centeredEntries : fallbackEntries;
+  if (initialPool.length === 0) {
+    throw new Error(`Catálogo sem resposta central compatível com a origem ${originBiome}`);
   }
-  const initialEntry = random.pick(centeredEntries);
+  const initialEntry = random.pick(initialPool);
   const initialStart = { x: -Math.floor(initialEntry.gridAnswer.length / 2), y: 0 };
   const words: PlacedWord[] = [
-    toPlacedWord(initialEntry, 0, "horizontal", initialStart, originBiome),
+    toPlacedWord(initialEntry, 0, "horizontal", initialStart, centeredBiome(initialEntry)),
   ];
   const used = new Set([initialEntry.id]);
 
