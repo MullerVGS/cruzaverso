@@ -308,6 +308,14 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .crossword-cell { cursor: pointer; }
 .crossword-cell path { fill: rgb(249 242 221 / 86%); stroke: #626659; stroke-width: 1.4; vector-effect: non-scaling-stroke; transition: opacity .2s, fill .2s, stroke .2s; }
 .crossword-cell.is-distant path { fill: rgb(47 58 54 / 18%); stroke: rgb(50 59 54 / 28%); opacity: .6; }
+/* A trilha avistada mas sem acesso recua para pergaminho: com ela também em
+   branco-papel, a diferença para a rota liberada era só a moldura, que some no
+   zoom afastado — e o mapa inteiro parecia jogável. O preenchimento é que
+   precisa carregar a hierarquia. */
+.crossword-cell.is-detailed:not(.is-available):not(.is-solved) path {
+  fill: rgb(206 191 158 / 55%);
+  stroke: rgb(88 92 78 / 45%);
+}
 .crossword-cell.is-detailed path { filter: url(#paper-shadow); }
 .crossword-cell.is-available:not(.is-solved) path { fill: rgb(255 251 235 / 98%); stroke: #6f6242; }
 .crossword-cell.is-available:hover path { fill: #fff9e9; stroke: #9a7441; stroke-width: 2; }
