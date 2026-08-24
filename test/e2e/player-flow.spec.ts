@@ -128,18 +128,38 @@ test("comprar um item cobra só quando ele aplica, e cancelar devolve tudo", asy
   await page.locator(`[data-cell-key="${coordinateKey(alvo)}"]`).click();
   await expect(aviso).toHaveCount(0);
   expect(await wallet(page)).toBe(saldoInicial - 10);
-  const letraComprada = page.locator(`[data-cell-key="${coordinateKey(alvo)}"] text.is-hinted`);
+  const letraComprada = page.locator(`text[data-letter-key="${coordinateKey(alvo)}"]`);
   await expect(letraComprada).toBeAttached();
+  await expect(letraComprada).toHaveClass(/is-hinted/);
   await expect(letraComprada).toHaveText(alvo.letter);
   await expect(page.locator(".answer-slot.is-hinted")).toHaveCount(1);
 
-  // Outra pista abre a segunda sem apagar a original.
+  // Gastar deixa os itens caros fora de alcance, e isso tem que ser visível.
+  await expect(page.locator('.shop-slot button[data-item="simplify-clue"]')).toBeDisabled();
+  await expect(page.locator('.shop-slot button[data-item="simplify-clue"]')).toHaveClass(/is-broke/);
+});
+
+test("a pista extra entra sem apagar a original", async ({ page, request }) => {
+  const dailyResponse = await request.get("/api/daily");
+  const { map } = (await dailyResponse.json()) as { map: DailyMap };
+  const primeira = map.words.find((word) =>
+    cellsForWord(word).some((cell) => coordinateKey(cell) === coordinateKey(map.spawn)),
+  );
+  expect(primeira).toBeDefined();
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /desbravar|continuar|rever/i }).click();
+  await expect(page.locator(`[data-word-id="${primeira!.id}"]`)).toBeVisible();
+  await page.locator(`[data-word-id="${primeira!.id}"]`).click();
+
   await expect(page.locator(".clue-line")).toHaveCount(1);
   await page.locator('.shop-slot button[data-item="simplify-clue"]').click();
-  await page.locator(`[data-cell-key="${coordinateKey(cellsForWord(primeira!)[1]!)}"]`).click();
+  await page.locator(`[data-cell-key="${coordinateKey(cellsForWord(primeira!)[0]!)}"]`).click();
+
   await expect(page.locator(".clue-line")).toHaveCount(2);
-  await expect(page.locator(".clue-line.is-extra")).toContainText(primeira!.clues.simple);
   await expect(page.locator(".clue-line").first()).toContainText(primeira!.clues.normal);
+  await expect(page.locator(".clue-line.is-extra")).toContainText(primeira!.clues.simple);
+  expect(await wallet(page)).toBe(15 - 14);
 });
 
 test("o teclado escreve, troca de palavra e move sem disputar letras com a câmera", async ({ page, request }) => {
@@ -238,7 +258,7 @@ test("a expedição livre é sandbox com moedas e o arquivo lista o que já saiu
   expect(map.id.startsWith("livre-m2-")).toBe(true);
 
   await page.goto(`/?seed=${seed}`);
-  await expect(page.getByText("EXPEDIÇÃO LIVRE")).toBeVisible();
+  await expect(page.locator(".expedition-ticket")).toContainText("EXPEDIÇÃO LIVRE");
   await page.getByRole("button", { name: /explorar|continuar|rever/i }).click();
 
   // Sem chave e sem saída: a tarja de objetivo do diário não existe aqui.
