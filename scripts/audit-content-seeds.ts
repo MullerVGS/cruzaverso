@@ -1,6 +1,7 @@
 import { DateTime } from "luxon";
 
 import { loadBundledCatalog } from "../src/content/bundled.js";
+import { BIOMES } from "../src/content/catalog.js";
 import { GAME_BALANCE } from "../src/config/game.js";
 import { generateMediumMap, validateMediumMap } from "../src/generation/medium.js";
 import { generateDailyWorld, validateWorld } from "../src/generation/world.js";
@@ -41,8 +42,14 @@ const shortWorlds: string[] = [];
 const outOfRangeMaps: Array<{ date: string; words: number }> = [];
 const worldWordCounts: number[] = [];
 const mapWordCounts: number[] = [];
-const crossings: number[] = [];
-const cycles: number[] = [];
+const worldCrossings: number[] = [];
+const mapCrossings: number[] = [];
+const worldCycles: number[] = [];
+const mapCycles: number[] = [];
+const worldCheckedCellRatios: number[] = [];
+const mapCheckedCellRatios: number[] = [];
+const worldCrossedLettersPerWord: number[] = [];
+const mapCrossedLettersPerWord: number[] = [];
 const biomes: number[] = [];
 const averageDifficulties: number[] = [];
 
@@ -64,8 +71,14 @@ for (const date of dates) {
   increment(mediumUsage, map.words.map((word) => word.entryId));
   worldWordCounts.push(world.words.length);
   mapWordCounts.push(map.words.length);
-  crossings.push(map.report.crossings);
-  cycles.push(map.report.cycles);
+  worldCrossings.push(world.report.crossings);
+  mapCrossings.push(map.report.crossings);
+  worldCycles.push(world.report.cycles);
+  mapCycles.push(map.report.cycles);
+  worldCheckedCellRatios.push(world.report.checkedCellRatio);
+  mapCheckedCellRatios.push(map.report.checkedCellRatio);
+  worldCrossedLettersPerWord.push(world.report.crossedLettersPerWord);
+  mapCrossedLettersPerWord.push(map.report.crossedLettersPerWord);
   biomes.push(map.report.biomes);
   averageDifficulties.push(
     map.words.reduce((sum, word) => sum + word.difficulty, 0) / map.words.length,
@@ -95,6 +108,27 @@ const coverageByProvenance = Object.fromEntries(
     ];
   }),
 );
+const coverageByBiome = Object.fromEntries(
+  BIOMES.map((biome) => {
+    const entries = catalog.byBiome[biome];
+    const worldAppearances = entries.map((entry) => worldUsage.get(entry.id) ?? 0);
+    const mediumAppearances = entries.map((entry) => mediumUsage.get(entry.id) ?? 0);
+    return [
+      biome,
+      {
+        entries: entries.length,
+        world: {
+          used: worldAppearances.filter((count) => count > 0).length,
+          appearances: summarize(worldAppearances),
+        },
+        medium: {
+          used: mediumAppearances.filter((count) => count > 0).length,
+          appearances: summarize(mediumAppearances),
+        },
+      },
+    ];
+  }),
+);
 
 const report = {
   startDate: dates[0],
@@ -108,16 +142,27 @@ const report = {
     outOfRangeMaps,
   },
   statistics: {
-    worldWords: summarize(worldWordCounts),
-    mapWords: summarize(mapWordCounts),
-    crossings: summarize(crossings),
-    cycles: summarize(cycles),
+    world: {
+      words: summarize(worldWordCounts),
+      crossings: summarize(worldCrossings),
+      cycles: summarize(worldCycles),
+      checkedCellRatio: summarize(worldCheckedCellRatios),
+      crossedLettersPerWord: summarize(worldCrossedLettersPerWord),
+    },
+    medium: {
+      words: summarize(mapWordCounts),
+      crossings: summarize(mapCrossings),
+      cycles: summarize(mapCycles),
+      checkedCellRatio: summarize(mapCheckedCellRatios),
+      crossedLettersPerWord: summarize(mapCrossedLettersPerWord),
+    },
     biomes: summarize(biomes),
     averageDifficulty: summarize(averageDifficulties),
   },
   coverage: {
     world: { used: catalog.entries.length - unused(worldUsage).length, unused: unused(worldUsage) },
     medium: { used: catalog.entries.length - unused(mediumUsage).length, unused: unused(mediumUsage) },
+    byBiome: coverageByBiome,
     byProvenance: coverageByProvenance,
     leastUsedMedium,
   },

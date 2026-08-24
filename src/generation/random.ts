@@ -1,3 +1,5 @@
+import { stableFingerprint } from "../shared/fingerprint.js";
+
 export function hashString(value: string): number {
   let hash = 0x811c9dc5;
   for (let index = 0; index < value.length; index += 1) {
@@ -54,5 +56,5 @@ export class SeededRandom {
 }
 
 export function seedFingerprint(seed: string): string {
-  return hashString(seed).toString(16).padStart(8, "0");
+  return stableFingerprint(seed);
 }

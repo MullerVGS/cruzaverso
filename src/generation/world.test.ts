@@ -3,8 +3,13 @@ import { describe, expect, it } from "vitest";
 import { loadBundledCatalog } from "../content/bundled.js";
 import { buildContentCatalog } from "../content/catalog.js";
 import { createBiomeField, majorityBiome } from "./biome-field.js";
-import { cellsForWord } from "./types.js";
-import { GENERATOR_VERSION, generateDailyWorld, validateWorld } from "./world.js";
+import { cellsForWord, type DailyWorld, type PlacedWord } from "./types.js";
+import {
+  GENERATOR_CONFIG_VERSION,
+  GENERATOR_VERSION,
+  generateDailyWorld,
+  validateWorld,
+} from "./world.js";
 
 const fastConfig = {
   targetWords: 26,
@@ -43,6 +48,7 @@ describe("mundo diário", () => {
 
     expect(world.schemaVersion).toBe(2);
     expect(world.generatorVersion).toBe(GENERATOR_VERSION);
+    expect(world.configVersion).toBe(GENERATOR_CONFIG_VERSION);
     expect(world.biomeField.seed).toBeTypeOf("number");
     expect(world.biomeField.octaves).toBeGreaterThan(0);
     expect(world.id).toContain("-g2-");
@@ -65,6 +71,51 @@ describe("mundo diário", () => {
     expect(mundoV2.words.map((word) => word.entryId)).toEqual(mundoV1.words.map((word) => word.entryId));
   });
 
+  it("dá ids diferentes quando o conteúdo muda sem trocar a etiqueta", () => {
+    const entries = loadBundledCatalog().entries.map((entry, index) => ({
+      ...entry,
+      clues:
+        index === 0
+          ? { ...entry.clues, normal: `${entry.clues.normal} Variante editorial.` }
+          : entry.clues,
+    }));
+    const original = buildContentCatalog(loadBundledCatalog().entries, "mesma-versao");
+    const alterado = buildContentCatalog(entries, "mesma-versao");
+
+    const mundoOriginal = generateDailyWorld({
+      date: "2026-08-23",
+      catalog: original,
+      config: fastConfig,
+    });
+    const mundoAlterado = generateDailyWorld({
+      date: "2026-08-23",
+      catalog: alterado,
+      config: fastConfig,
+    });
+
+    expect(alterado.contentFingerprint).not.toBe(original.contentFingerprint);
+    expect(mundoAlterado.id).not.toBe(mundoOriginal.id);
+    expect(mundoAlterado.words.map((word) => word.entryId)).toEqual(
+      mundoOriginal.words.map((word) => word.entryId),
+    );
+  });
+
+  it("dá ids diferentes a configurações de geração diferentes", () => {
+    const catalog = loadBundledCatalog();
+    const menor = generateDailyWorld({
+      date: "2026-08-23",
+      catalog,
+      config: { ...fastConfig, targetWords: 24 },
+    });
+    const maior = generateDailyWorld({
+      date: "2026-08-23",
+      catalog,
+      config: { ...fastConfig, targetWords: 25 },
+    });
+
+    expect(maior.id).not.toBe(menor.id);
+  });
+
   it("cataloga cada palavra no bioma onde ela ocupa mais células", () => {
     const catalog = loadBundledCatalog();
     const world = generateDailyWorld({ date: "2026-08-23", catalog, config: fastConfig });
@@ -73,5 +124,52 @@ describe("mundo diário", () => {
     for (const word of world.words) {
       expect(word.biome).toBe(majorityBiome(field, cellsForWord(word)));
     }
+  });
+
+  it("mantém a palavra central no bioma da origem em seeds antes problemáticas", () => {
+    const catalog = loadBundledCatalog();
+    for (const date of ["2026-01-14", "2026-01-23", "2026-01-26"]) {
+      const world = generateDailyWorld({ date, catalog });
+      const field = createBiomeField(world.biomeField, world.biomeSites);
+      const initial = world.words[0];
+      expect(initial?.biome, date).toBe(
+        initial ? majorityBiome(field, cellsForWord(initial)) : undefined,
+      );
+    }
+  }, 20_000);
+
+  it("recusa palavras apenas encostadas de lado ou pela ponta", () => {
+    const placed = (
+      id: string,
+      answer: string,
+      orientation: PlacedWord["orientation"],
+      start: PlacedWord["start"],
+    ): PlacedWord => ({
+      id,
+      entryId: id,
+      answer,
+      gridAnswer: answer,
+      clues: { normal: "Pista principal", simple: "Pista direta" },
+      difficulty: 1,
+      familiarity: 5,
+      biome: "cotidiano",
+      orientation,
+      start,
+    });
+    const lateral = {
+      words: [
+        placed("gato", "GATO", "horizontal", { x: 0, y: 0 }),
+        placed("pato", "PATO", "horizontal", { x: 0, y: 1 }),
+      ],
+    } as DailyWorld;
+    const ponta = {
+      words: [
+        placed("gato", "GATO", "horizontal", { x: 0, y: 0 }),
+        placed("pato", "PATO", "horizontal", { x: 4, y: 0 }),
+      ],
+    } as DailyWorld;
+
+    expect(validateWorld(lateral)).toContain("Palavra gato encosta lateralmente em outra palavra");
+    expect(validateWorld(ponta)).toContain("Palavra gato encosta pela ponta em outra palavra");
   });
 });

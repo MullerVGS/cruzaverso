@@ -1,6 +1,8 @@
 import { BIOMES } from "../content/catalog.js";
 import { GAME_BALANCE } from "../config/game.js";
 import { SeededRandom, seedFingerprint } from "./random.js";
+import { crosswordDensity } from "./density.js";
+import { validateCrosswordLayout } from "./world.js";
 import {
   cellsForWord,
   coordinateKey,
@@ -25,6 +27,8 @@ interface CandidateSection {
   words: PlacedWord[];
   crossings: number;
   cycles: number;
+  checkedCellRatio: number;
+  crossedLettersPerWord: number;
   score: number;
 }
 
@@ -106,36 +110,61 @@ function growSection(
   const origins = graph.crossings.get(crossingKey) ?? [];
   const distance = graphDistance(graph.adjacency, origins);
   const spawn = parseCoordinateKey(crossingKey);
-  const ordered = [...distance.entries()]
-    .map(([id, steps]) => ({
-      word: wordById.get(id) as PlacedWord,
-      steps,
-      jitter: random.fork(`${crossingKey}:${id}`).float(),
-    }))
-    .filter((candidate) => Boolean(candidate.word))
-    .sort(
-      (left, right) =>
-        left.steps - right.steps || left.jitter - right.jitter || left.word.id.localeCompare(right.word.id),
-    );
-
-  const selected = ordered.slice(0, Math.min(targetWords, ordered.length)).map(({ word }) => word);
-  const selectedIds = new Set(selected.map((word) => word.id));
-  let crossings = 0;
-  for (const ids of graph.crossings.values()) {
-    if (ids.every((id) => selectedIds.has(id))) crossings += 1;
+  const selectedIds = new Set(origins);
+  const selectedOrder = [...origins];
+  const limit = Math.min(targetWords, distance.size);
+  while (selectedIds.size < limit) {
+    const frontier = new Set<string>();
+    for (const id of selectedIds) {
+      for (const neighbor of graph.adjacency.get(id) ?? []) {
+        if (!selectedIds.has(neighbor)) frontier.add(neighbor);
+      }
+    }
+    const winner = [...frontier]
+      .map((id) => {
+        const neighbors = graph.adjacency.get(id) ?? new Set();
+        const internalConnections = [...neighbors].filter((neighbor) => selectedIds.has(neighbor)).length;
+        return {
+          id,
+          score:
+            internalConnections * 100 +
+            neighbors.size * 5 -
+            (distance.get(id) ?? world.words.length) * 2 +
+            random.fork(`${crossingKey}:${id}`).float(),
+        };
+      })
+      .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))[0];
+    if (!winner) break;
+    selectedIds.add(winner.id);
+    selectedOrder.push(winner.id);
   }
+  const selected = selectedOrder
+    .map((id) => wordById.get(id))
+    .filter((word): word is PlacedWord => Boolean(word));
+  const density = crosswordDensity(selected);
+  const crossings = density.crossings;
   const cycles = Math.max(0, crossings - selected.length + 1);
   const degree = origins.reduce((total, id) => total + (graph.adjacency.get(id)?.size ?? 0), 0);
-  const branchDistances = ordered.slice(0, selected.length).map(({ steps }) => steps);
+  const branchDistances = selected.map((word) => distance.get(word.id) ?? 0);
   const depth = Math.max(0, ...branchDistances);
   const score =
     selected.length * 20 +
     crossings * 6 +
     cycles * 65 +
+    density.checkedCellRatio * 600 +
+    density.crossedLettersPerWord * 25 +
     degree * 4 +
     depth * 2 -
     Math.abs(selected.length - targetWords) * 30;
-  return { spawn, words: selected, crossings, cycles, score };
+  return {
+    spawn,
+    words: selected,
+    crossings,
+    cycles,
+    checkedCellRatio: density.checkedCellRatio,
+    crossedLettersPerWord: density.crossedLettersPerWord,
+    score,
+  };
 }
 
 function buildCellGraph(words: readonly PlacedWord[]): Map<string, Set<string>> {
@@ -351,7 +380,7 @@ function analyzeObjectiveRoutes(
     plans.length * 80 +
     diversity * 9 -
     mandatory.length * 8 -
-    Math.abs(smallestPlan - 15) * 2;
+    Math.abs(smallestPlan - 19) * 2;
   return { plans, diversity, mandatoryWords: mandatory.length, score };
 }
 
@@ -370,9 +399,14 @@ export function generateMediumMap(world: DailyWorld, options: MediumOptions = {}
       GAME_BALANCE.medium.targetWords.maxExclusive,
     ),
   );
-  const candidates = [...graph.crossings.keys()].map((crossingKey) =>
-    growSection(world, graph, crossingKey, targetWords, random.fork(crossingKey)),
-  );
+  const candidates = [...graph.crossings.keys()]
+    .map((crossingKey) =>
+      growSection(world, graph, crossingKey, targetWords, random.fork(crossingKey)),
+    )
+    // Remover uma palavra do mundo pode deixar duas respostas paralelas
+    // encostadas sem o corredor transversal que legitimava aquelas células.
+    // O recorte publicado precisa continuar sendo uma crossword por si só.
+    .filter((candidate) => validateCrosswordLayout(candidate.words).length === 0);
   const evaluated: EvaluatedSection[] = candidates.map((candidate) => {
     const candidateSeed = `${world.seed}:${coordinateKey(candidate.spawn)}`;
     const objects = placeObjects(candidate, candidateSeed);
@@ -411,7 +445,9 @@ export function generateMediumMap(world: DailyWorld, options: MediumOptions = {}
     // O dataset entra na impressão digital: catálogo diferente produz outro
     // quebra-cabeça, e sem isso ele herdaria o mesmo id — o save local passaria
     // na checagem de `mapId` e escreveria letras nas células erradas.
-    id: `${world.date}-m2-${seedFingerprint(`${world.seed}:medium:${world.datasetVersion}`)}`,
+    id: `${world.date}-m2-${seedFingerprint(
+      `${world.id}:medium:${mode}:${world.generatorVersion}:${world.configVersion}`,
+    )}`,
     worldId: world.id,
     configVersion: world.configVersion,
     date: world.date,
@@ -430,6 +466,8 @@ export function generateMediumMap(world: DailyWorld, options: MediumOptions = {}
       words: section.words.length,
       crossings: section.crossings,
       cycles: section.cycles,
+      checkedCellRatio: section.checkedCellRatio,
+      crossedLettersPerWord: section.crossedLettersPerWord,
       biomes: new Set(section.words.map((word) => word.biome)).size,
       score: section.finalScore,
       routeDiversity: section.routes.diversity,
@@ -439,6 +477,8 @@ export function generateMediumMap(world: DailyWorld, options: MediumOptions = {}
         spawn: candidate.spawn,
         words: candidate.words.length,
         cycles: candidate.cycles,
+        checkedCellRatio: candidate.checkedCellRatio,
+        crossedLettersPerWord: candidate.crossedLettersPerWord,
         routeDiversity: candidate.routes.diversity,
         mandatoryWords: candidate.routes.mandatoryWords,
         score: candidate.finalScore,
@@ -453,7 +493,7 @@ export function generateMediumMap(world: DailyWorld, options: MediumOptions = {}
 }
 
 export function validateMediumMap(map: DailyMap): string[] {
-  const errors: string[] = [];
+  const errors = validateCrosswordLayout(map.words);
   if (map.words.length === 0) return ["Mapa sem palavras"];
 
   const cellGraph = buildCellGraph(map.words);

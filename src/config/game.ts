@@ -3,12 +3,15 @@ import type { ItemType } from "../generation/types.js";
 
 export const GAME_BALANCE = {
   world: {
-    targetWords: 58,
-    attempts: 7,
-    chunkCount: 22,
+    targetWords: 84,
+    attempts: 4,
+    chunkCount: 28,
+    anchorScanLimit: 32,
+    entriesPerAnchor: 36,
+    optionsPerPlacement: 80,
   },
   medium: {
-    targetWords: { minInclusive: 20, maxExclusive: 27 },
+    targetWords: { minInclusive: 28, maxExclusive: 35 },
     coins: { minInclusive: 5, maxExclusive: 9 },
     keysAvailable: 3,
     keysRequired: 2,
