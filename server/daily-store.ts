@@ -6,7 +6,7 @@ import { loadBundledCatalog } from "../src/content/bundled.js";
 import { GAME_BALANCE } from "../src/config/game.js";
 import { generateMediumMap } from "../src/generation/medium.js";
 import type { DailyMap, DailyWorld } from "../src/generation/types.js";
-import { generateDailyWorld } from "../src/generation/world.js";
+import { GENERATOR_VERSION, generateDailyWorld } from "../src/generation/world.js";
 
 export interface DailyArtifact {
   world: DailyWorld;
@@ -65,9 +65,15 @@ export class DailyStore {
 
   get(date: string): DailyArtifact | null {
     const row = this.database
-      .prepare("SELECT world_json, map_json FROM daily_artifacts WHERE date = ?")
-      .get(date) as ArtifactRow | undefined;
+      .prepare(
+        "SELECT world_json, map_json, generator_version FROM daily_artifacts WHERE date = ?",
+      )
+      .get(date) as (ArtifactRow & { generator_version: string }) | undefined;
     if (!row) return null;
+    // Artefato de um gerador anterior não é servível: o cliente atual espera
+    // campos que ele não tem. A regra do projeto é que mudança de algoritmo
+    // exige incremento de versão — é esse incremento que autoriza reger.
+    if (row.generator_version !== GENERATOR_VERSION) return null;
     return {
       world: JSON.parse(row.world_json) as DailyWorld,
       map: JSON.parse(row.map_json) as DailyMap,
@@ -85,7 +91,7 @@ export class DailyStore {
     }
     this.database
       .prepare(
-        `INSERT OR IGNORE INTO daily_artifacts
+        `INSERT OR REPLACE INTO daily_artifacts
           (date, world_id, map_id, generator_version, dataset_version, config_version,
            resolved_config_json, world_json, map_json)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
