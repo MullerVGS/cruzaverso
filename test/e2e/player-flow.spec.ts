@@ -82,6 +82,13 @@ test("uma expedição pode sair da primeira pista e chegar à vitória", async (
 
   for (const key of map.objects.filter((object) => object.type === "key").slice(0, 2)) {
     await page.locator(`[data-cell-key="${coordinateKey(key.position)}"]`).click();
+    // O explorador percorre o corredor casa a casa, e um destino novo cancela a
+    // rota em curso. Esperar a chegada é o que separa "andou até a chave" de
+    // "mudou de ideia no meio do caminho".
+    await expect(page.locator("[data-player-key]")).toHaveAttribute(
+      "data-player-key",
+      coordinateKey(key.position),
+    );
   }
   const exit = map.objects.find((object) => object.type === "exit");
   expect(exit).toBeDefined();
@@ -92,6 +99,24 @@ test("uma expedição pode sair da primeira pista e chegar à vitória", async (
   if (process.env.CAPTURE_UI === "true") {
     await page.screenshot({ path: testInfo.outputPath("victory.png"), fullPage: true });
   }
+
+  // Concluir uma expedição diária é a conquista da bússola: ela chega equipada,
+  // com as três agulhas, e a escolha atravessa o recarregamento.
+  await expect(page.locator(".summary-achievement")).toContainText("Bússola do explorador");
+  await page.getByRole("button", { name: "Revelar atlas completo" }).click();
+  await expect(page.locator(".explorer-compass")).toBeVisible();
+
+  await page.getByRole("button", { name: "Abrir ajustes" }).click();
+  const agulhas = page.locator(".needle-picker button");
+  await expect(agulhas).toHaveCount(3);
+  await agulhas.nth(1).click();
+  await expect(agulhas.nth(1)).toHaveAttribute("aria-checked", "true");
+
+  await page.reload();
+  await page.getByRole("button", { name: /rever|continuar|desbravar/i }).click();
+  await page.getByRole("button", { name: "Revelar atlas completo" }).click();
+  await page.getByRole("button", { name: "Abrir ajustes" }).click();
+  await expect(page.locator(".needle-picker button").nth(1)).toHaveAttribute("aria-checked", "true");
 });
 
 test("comprar um item cobra só quando ele aplica, e cancelar devolve tudo", async ({ page, request }, testInfo) => {

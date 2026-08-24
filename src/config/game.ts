@@ -123,3 +123,63 @@ export const ITEM_DEFINITIONS: Record<
 };
 
 export const ITEM_TYPES = Object.keys(ITEM_DEFINITIONS) as ItemType[];
+
+/**
+ * O explorador. A bússola é uma conquista permanente: o aro (housing) é único e
+ * as agulhas (needles) são as skins que o jogador troca.
+ *
+ * As frações abaixo foram medidas na própria arte, não chutadas. `center` é o
+ * centro do aro na imagem — que não é o centro da tela da imagem, porque as
+ * orelhas de cima e de baixo deslocam a silhueta. `pivot` é o centro da joia de
+ * cada agulha, e `reach` é a distância do pivô até a ponta mais longa, em
+ * fração da imagem: é o que permite dimensionar qualquer agulha nova para caber
+ * no mostrador sem tentativa e erro.
+ */
+export const EXPLORER = {
+  /** Cadência de um passo do explorador, e o teto do percurso inteiro: uma
+      travessia longa acelera para não virar espera, sem que o pulo curto
+      perca o peso de um passo. */
+  walkStepMs: 78,
+  walkStepMinMs: 42,
+  walkRouteMs: 1_100,
+  /** Quanto tempo parado até o instrumento recuar e devolver a letra da casa. */
+  restDelayMs: 1_000,
+  compass: {
+    housing: "/assets/player-compass/housing.png",
+    center: { x: 0.5, y: 0.4557 },
+    outerRadius: 0.4434,
+    dialRadius: 0.2863,
+    /** Quanto da meia-tela do mostrador a ponta da agulha ocupa. */
+    needleFill: 0.92,
+  },
+  needles: [
+    {
+      id: "seta-rumo",
+      label: "Seta de rumo",
+      description: "Cheia, de cartografia: ponta vermelha, cauda verde.",
+      asset: "/assets/player-compass/needles/seta-rumo.png",
+      pivot: { x: 0.5, y: 0.5762 },
+      reach: 0.5247,
+    },
+    {
+      id: "lanca-bicolor",
+      label: "Lança bicolor",
+      description: "Clássica de bússola de bolso, lâmina em tinta e papel.",
+      asset: "/assets/player-compass/needles/lanca-bicolor.png",
+      pivot: { x: 0.4996, y: 0.5363 },
+      reach: 0.5096,
+    },
+    {
+      id: "pena-magnetica",
+      label: "Pena magnética",
+      description: "Bico de tinteiro sobre contrapeso de lacre.",
+      asset: "/assets/player-compass/needles/pena-magnetica.png",
+      pivot: { x: 0.4988, y: 0.5299 },
+      reach: 0.4753,
+    },
+  ],
+} as const;
+
+export type NeedleId = (typeof EXPLORER.needles)[number]["id"];
+
+export const NEEDLE_IDS = EXPLORER.needles.map((needle) => needle.id) as NeedleId[];

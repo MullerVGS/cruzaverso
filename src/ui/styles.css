@@ -515,3 +515,42 @@ html[data-armed-item] .answer-slot { cursor: inherit; }
 
 .landing-card .text-button { display: block; width: auto; margin: 12px auto 0; padding: 4px 0; color: #766e5d; font-size: .72rem; text-align: center; }
 .landing-card .text-button:hover { color: #37423e; }
+
+/* Explorador */
+/* Camadas decorativas não competem pelo ponteiro: sem isto, a névoa e as
+   molduras roubam o hover das casas e a rota prevista some no meio do mapa. */
+.biome-atlas, .fog-layer, .fog-coast, .fog-chart-revealed, .word-frames, .section-frame, .cell-numbers, .paper-wash, .route-preview { pointer-events: none; }
+.route-preview path { fill: none; stroke: #8a6a33; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1 7; opacity: .72; animation: route-march 9s linear infinite; }
+.route-preview-goal { fill: rgb(196 153 78 / 16%); stroke: #8a6a33; stroke-width: 1.6; stroke-dasharray: 3 4; }
+@keyframes route-march { to { stroke-dashoffset: -128; } }
+.explorer-compass { pointer-events: none; filter: drop-shadow(0 4px 5px rgb(0 0 0 / 38%)); transition: transform .18s cubic-bezier(.3,.85,.35,1); }
+/* A oscilação e o rumo moram em elementos diferentes de propósito: uma é
+   animação, o outro é transição, e na mesma propriedade uma apagaria a outra. */
+.compass-housing, .compass-needle { transition: opacity .45s ease-out; }
+/* Parado, o instrumento desbota; a letra do mostrador nunca. */
+.explorer-compass.is-idle .compass-housing { opacity: .58; }
+.explorer-compass.is-idle .compass-needle { opacity: .22; }
+.explorer-compass.is-idle.is-aiming .compass-housing { opacity: .74; }
+.explorer-compass.is-idle.is-aiming .compass-needle { opacity: .5; }
+.compass-dial-letter { fill: rgb(36 57 52 / 62%); font-family: "EB Garamond", Georgia, serif; font-weight: 750; text-anchor: middle; paint-order: stroke; stroke: rgb(250 240 213 / 85%); stroke-width: 3; stroke-linejoin: round; }
+.compass-sway { animation: needle-sway 5.4s ease-in-out infinite; transform-origin: 0 0; }
+.compass-needle { transition: transform .62s cubic-bezier(.22,.9,.28,1); }
+.explorer-compass.is-resting .compass-sway { animation-duration: 7.2s; }
+@keyframes needle-sway { 0%, 100% { transform: rotate(-2.2deg); } 50% { transform: rotate(2.2deg); } }
+
+/* Instrumento nos ajustes */
+.kit-panel { margin-bottom: 6px; padding-bottom: 10px; border-bottom: 1px solid rgb(255 255 255 / 7%); }
+.kit-panel h3 { margin: 0 0 4px; color: #c4994e; font-family: "EB Garamond", Georgia, serif; font-size: .74rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.kit-panel label { border-bottom: 0; }
+.kit-locked { margin: 4px 0 2px; color: #97a09a; font-size: .68rem; line-height: 1.45; }
+.needle-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 4px; }
+.needle-picker button { display: grid; justify-items: center; gap: 4px; padding: 7px 3px 6px; border: 1px solid rgb(232 215 171 / 14%); border-radius: 4px; color: #aeb5ae; background: rgb(255 255 255 / 3%); cursor: pointer; font-size: .53rem; line-height: 1.2; text-align: center; }
+.needle-picker button img { width: 34px; height: 34px; object-fit: contain; }
+.needle-picker button:hover:not(:disabled) { border-color: rgb(196 153 78 / 55%); color: #e7dcc2; }
+.needle-picker button.is-chosen { border-color: #c4994e; color: #f4e6c6; background: rgb(196 153 78 / 16%); }
+.needle-picker button:disabled { opacity: .3; cursor: default; }
+
+.summary-achievement { position: relative; display: flex; align-items: center; gap: 13px; margin: 0 0 20px; padding: 12px 16px; text-align: left; border: 1px dashed rgb(140 104 46 / 45%); border-radius: 4px; background: rgb(196 153 78 / 12%); }
+.summary-achievement img { width: 46px; height: 46px; flex: none; }
+.summary-achievement span { display: block; color: #6a6154; font-size: .68rem; line-height: 1.45; }
+.summary-achievement b { display: block; margin-bottom: 2px; color: #8b622f; font-family: "EB Garamond", Georgia, serif; font-size: .95rem; }
