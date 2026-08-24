@@ -32,7 +32,8 @@ test("uma expedição pode sair da primeira pista e chegar à vitória", async (
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Cruzaverso" })).toBeVisible();
   await page.getByRole("button", { name: /desbravar|continuar|rever/i }).click();
-  await expect(page.getByText("DIÁRIO DE CAMPO")).toBeVisible();
+  await expect(page.locator(".clue-index")).toBeVisible();
+  await expect(page.locator(".run-tally")).toContainText(`0/${map.words.length}`);
 
   // O fundo precisa ser o campo de biomas desenhado, não as barras por palavra.
   await expect(page.locator(".biome-atlas")).toBeVisible();

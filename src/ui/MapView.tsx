@@ -528,8 +528,8 @@ export function MapView({
               <text
                 key={`numero-${key}`}
                 data-number-key={key}
-                x={cell.position.x * CELL + 3.6}
-                y={cell.position.y * CELL + 10.2}
+                x={cell.position.x * CELL + 1}
+                y={cell.position.y * CELL - 3}
               >
                 {number}
               </text>
