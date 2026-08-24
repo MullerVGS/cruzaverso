@@ -9,7 +9,9 @@ import {
   type Coordinate,
   type DailyMap,
   type DailyWorld,
+  type MapMode,
   type MapObject,
+  type MapObjective,
   type PlacedWord,
 } from "./types.js";
 
@@ -230,6 +232,30 @@ function placeObjects(section: CandidateSection, seed: string): MapObject[] {
   return objects;
 }
 
+function placeCoins(section: CandidateSection, seed: string): MapObject[] {
+  const random = new SeededRandom(`${seed}:coins`);
+  const graph = buildCellGraph(section.words);
+  const distances = distanceFromSpawn(graph, section.spawn);
+  const spawnKey = coordinateKey(section.spawn);
+  const count = random.int(
+    GAME_BALANCE.medium.coins.minInclusive,
+    GAME_BALANCE.medium.coins.maxExclusive,
+  );
+  const candidates = pickSpreadCoordinates(
+    [...distances.entries()]
+      .filter(([key, distance]) => key !== spawnKey && distance >= 2)
+      .map(([key, distance]) => ({ key, distance })),
+    count,
+    random.fork("spread"),
+  );
+  return candidates.map((position, index) => ({
+    id: `coin-${index + 1}`,
+    type: "coin",
+    value: GAME_BALANCE.economy.coinValue,
+    position,
+  }));
+}
+
 function wordIdsAt(words: readonly PlacedWord[], position: Coordinate): string[] {
   const key = coordinateKey(position);
   return words
@@ -329,7 +355,12 @@ function analyzeObjectiveRoutes(
   return { plans, diversity, mandatoryWords: mandatory.length, score };
 }
 
-export function generateMediumMap(world: DailyWorld): DailyMap {
+export interface MediumOptions {
+  mode?: MapMode;
+}
+
+export function generateMediumMap(world: DailyWorld, options: MediumOptions = {}): DailyMap {
+  const mode = options.mode ?? "daily";
   const random = new SeededRandom(`${world.seed}:medium`);
   const graph = buildWordGraph(world.words);
   const targetWords = Math.min(
@@ -361,6 +392,20 @@ export function generateMediumMap(world: DailyWorld): DailyMap {
   const section = evaluated[0];
   if (!section || section.words.length === 0) throw new Error("Mundo sem seção Medium viável");
 
+  // A avaliação acima roda igual nos dois modos, com chaves e saída: é ela que
+  // escolhe uma seção bem conectada, e manter o critério faz a mesma seed dar a
+  // mesma seção. A troca por moedas só acontece na seção vencedora.
+  const sectionSeed = `${world.seed}:${coordinateKey(section.spawn)}`;
+  const objects = mode === "free" ? placeCoins(section, sectionSeed) : section.objects;
+  const objective: MapObjective =
+    mode === "free"
+      ? { kind: "sandbox" }
+      : {
+          kind: "keys-and-exit",
+          keysRequired: GAME_BALANCE.medium.keysRequired,
+          keysAvailable: GAME_BALANCE.medium.keysAvailable,
+        };
+
   const map: DailyMap = {
     schemaVersion: 2,
     // O dataset entra na impressão digital: catálogo diferente produz outro
@@ -377,13 +422,9 @@ export function generateMediumMap(world: DailyWorld): DailyMap {
     words: section.words,
     bounds: boundsForWords(section.words),
     spawn: section.spawn,
-    mode: "daily",
-    objects: section.objects,
-    objective: {
-      kind: "keys-and-exit",
-      keysRequired: GAME_BALANCE.medium.keysRequired,
-      keysAvailable: GAME_BALANCE.medium.keysAvailable,
-    },
+    mode,
+    objects,
+    objective,
     report: {
       valid: false,
       words: section.words.length,
@@ -405,13 +446,13 @@ export function generateMediumMap(world: DailyWorld): DailyMap {
       errors: [],
     },
   };
-  const errors = validateDailyMap(map);
+  const errors = validateMediumMap(map);
   map.report.errors = errors;
   map.report.valid = errors.length === 0;
   return map;
 }
 
-export function validateDailyMap(map: DailyMap): string[] {
+export function validateMediumMap(map: DailyMap): string[] {
   const errors: string[] = [];
   if (map.words.length === 0) return ["Mapa sem palavras"];
 
@@ -422,10 +463,20 @@ export function validateDailyMap(map: DailyMap): string[] {
   const distances = distanceFromSpawn(cellGraph, map.spawn);
   if (distances.size !== cellGraph.size) errors.push("Caminhos desconectados no recorte");
 
-  const keys = map.objects.filter((object) => object.type === "key");
-  const exits = map.objects.filter((object) => object.type === "exit");
-  if (keys.length !== 3) errors.push("O mapa precisa ter exatamente três chaves");
-  if (exits.length !== 1) errors.push("O mapa precisa ter exatamente uma saída");
+  if (map.mode === "daily") {
+    const keys = map.objects.filter((object) => object.type === "key");
+    const exits = map.objects.filter((object) => object.type === "exit");
+    if (keys.length !== 3) errors.push("O mapa precisa ter exatamente três chaves");
+    if (exits.length !== 1) errors.push("O mapa precisa ter exatamente uma saída");
+  } else {
+    const coins = map.objects.filter((object) => object.type === "coin");
+    if (coins.length < GAME_BALANCE.medium.coins.minInclusive) {
+      errors.push("O mapa livre precisa ter pelo menos cinco moedas");
+    }
+    if (map.objects.some((object) => object.type !== "coin")) {
+      errors.push("O mapa livre não pode ter chave nem saída");
+    }
+  }
 
   const occupied = new Set<string>();
   for (const object of map.objects) {
@@ -439,10 +490,12 @@ export function validateDailyMap(map: DailyMap): string[] {
   const biomeIds = new Set(BIOMES);
   if (map.words.some((word) => !biomeIds.has(word.biome))) errors.push("Bioma inválido no recorte");
   if (map.report.cycles < 1) errors.push("Recorte sem rota alternativa");
-  const routes = analyzeObjectiveRoutes(map.words, map.spawn, map.objects);
-  if (routes.plans.length !== 3) errors.push("Nem todas as combinações de duas chaves são alcançáveis");
-  if (routes.plans.every((plan) => plan.requiredWords.length >= map.words.length)) {
-    errors.push("Objetivo exige completar toda a crossword");
+  if (map.mode === "daily") {
+    const routes = analyzeObjectiveRoutes(map.words, map.spawn, map.objects);
+    if (routes.plans.length !== 3) errors.push("Nem todas as combinações de duas chaves são alcançáveis");
+    if (routes.plans.every((plan) => plan.requiredWords.length >= map.words.length)) {
+      errors.push("Objetivo exige completar toda a crossword");
+    }
   }
   return errors;
 }

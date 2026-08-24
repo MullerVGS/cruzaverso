@@ -1,27 +1,42 @@
 import type { DailyMap } from "../generation/types.js";
 
-export async function loadDailyMap(date?: string): Promise<DailyMap> {
-  const query = date ? `?date=${encodeURIComponent(date)}` : "";
-  const response = await fetch(`/api/daily${query}`);
-  if (!response.ok) throw new Error("Não foi possível abrir o mundo de hoje.");
-  const body = (await response.json()) as { map: DailyMap };
-  return body.map;
+export interface ArchiveEntry {
+  date: string;
+  mapId: string;
+  words: number;
 }
 
-export async function loadDebugMap(input: { date?: string; seed?: string }): Promise<DailyMap> {
-  const query = new URLSearchParams();
-  if (input.date) query.set("date", input.date);
-  if (input.seed) query.set("seed", input.seed);
-  const response = await fetch(`/api/debug/world?${query}`);
-  if (!response.ok) throw new Error("A ferramenta de seed não está habilitada.");
-  const body = (await response.json()) as { map: DailyMap };
-  return body.map;
+export async function loadDailyMap(): Promise<DailyMap> {
+  const response = await fetch("/api/daily");
+  if (!response.ok) throw new Error("Não foi possível abrir o mundo de hoje.");
+  return ((await response.json()) as { map: DailyMap }).map;
+}
+
+export async function loadDailyMapByDate(date: string): Promise<DailyMap> {
+  const response = await fetch(`/api/daily/${encodeURIComponent(date)}`);
+  if (!response.ok) throw new Error("Essa expedição ainda não existe no arquivo.");
+  return ((await response.json()) as { map: DailyMap }).map;
+}
+
+export async function loadFreeMap(seed: string): Promise<DailyMap> {
+  const response = await fetch(`/api/world?seed=${encodeURIComponent(seed)}`);
+  if (response.status === 429) {
+    throw new Error("Muitos mundos novos agora há pouco. Tente de novo em um minuto.");
+  }
+  if (!response.ok) throw new Error("Não foi possível desenhar esse mundo.");
+  return ((await response.json()) as { map: DailyMap }).map;
+}
+
+export async function loadArchive(limit = 8): Promise<ArchiveEntry[]> {
+  const response = await fetch(`/api/archive?limit=${limit}`);
+  if (!response.ok) return [];
+  return ((await response.json()) as { entries: ArchiveEntry[] }).entries;
 }
 
 export type TelemetryEventName =
   | "run_started"
   | "word_solved"
-  | "powerup_used"
+  | "item_used"
   | "key_collected"
   | "area_captured"
   | "victory";

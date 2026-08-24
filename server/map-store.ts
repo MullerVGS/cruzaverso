@@ -8,6 +8,27 @@ import { generateMediumMap } from "../src/generation/medium.js";
 import type { DailyMap, DailyWorld } from "../src/generation/types.js";
 import { GENERATOR_VERSION, generateDailyWorld } from "../src/generation/world.js";
 
+export interface ArchiveEntry {
+  date: string;
+  mapId: string;
+  words: number;
+}
+
+/** A data do artefato livre é sentinela: o id não pode mudar com o calendário. */
+export const FREE_MAP_DATE = "livre";
+
+export function normalizeSeed(input: string): string | null {
+  const slug = input
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+/, "")
+    .slice(0, 40)
+    .replace(/-+$/, "");
+  return slug.length > 0 ? slug : null;
+}
+
 export interface DailyArtifact {
   world: DailyWorld;
   map: DailyMap;
@@ -26,7 +47,7 @@ export interface TelemetryEvent {
   payload: Record<string, string | number | boolean | null | undefined>;
 }
 
-export class DailyStore {
+export class MapStore {
   readonly databasePath: string;
   private readonly database: Database.Database;
   /** Versão do catálogo embarcado nesta build; ver `get`. */
@@ -63,6 +84,16 @@ export class DailyStore {
       );
       CREATE INDEX IF NOT EXISTS telemetry_map_event
         ON telemetry_events (map_id, event);
+      CREATE TABLE IF NOT EXISTS free_maps (
+        seed TEXT PRIMARY KEY,
+        map_id TEXT NOT NULL,
+        generator_version TEXT NOT NULL,
+        dataset_version TEXT NOT NULL,
+        config_version TEXT NOT NULL,
+        world_json TEXT NOT NULL,
+        map_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
     `);
   }
 
@@ -86,7 +117,7 @@ export class DailyStore {
     };
   }
 
-  getOrCreate(date: string): DailyArtifact {
+  getOrCreateDaily(date: string): DailyArtifact {
     const existing = this.get(date);
     if (existing) return existing;
 
@@ -114,6 +145,71 @@ export class DailyStore {
         JSON.stringify(map),
       );
     return this.get(date) ?? { world, map };
+  }
+
+  getDaily(date: string): DailyArtifact | null {
+    return this.get(date);
+  }
+
+  listDaily(limit: number, today: string): ArchiveEntry[] {
+    const rows = this.database
+      .prepare(
+        `SELECT date, map_id, map_json FROM daily_artifacts
+         WHERE date <= ? AND generator_version = ? AND dataset_version = ?
+         ORDER BY date DESC LIMIT ?`,
+      )
+      .all(today, GENERATOR_VERSION, this.datasetVersion, limit) as Array<{
+      date: string;
+      map_id: string;
+      map_json: string;
+    }>;
+    return rows.map((row) => ({
+      date: row.date,
+      mapId: row.map_id,
+      words: (JSON.parse(row.map_json) as DailyMap).words.length,
+    }));
+  }
+
+  getFree(seed: string): DailyArtifact | null {
+    const row = this.database
+      .prepare(
+        `SELECT world_json, map_json FROM free_maps
+         WHERE seed = ? AND generator_version = ? AND dataset_version = ?`,
+      )
+      .get(seed, GENERATOR_VERSION, this.datasetVersion) as ArtifactRow | undefined;
+    if (!row) return null;
+    return {
+      world: JSON.parse(row.world_json) as DailyWorld,
+      map: JSON.parse(row.map_json) as DailyMap,
+    };
+  }
+
+  createFree(seed: string): DailyArtifact {
+    const world = generateDailyWorld({
+      date: FREE_MAP_DATE,
+      seed: `cruzaverso:livre:${seed}`,
+      catalog: loadBundledCatalog(),
+    });
+    const map = generateMediumMap(world, { mode: "free" });
+    if (!world.report.valid || !map.report.valid) {
+      throw new Error(`Mundo livre inválido para a seed ${seed}`);
+    }
+    this.database
+      .prepare(
+        `INSERT OR REPLACE INTO free_maps
+          (seed, map_id, generator_version, dataset_version, config_version, world_json, map_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        seed,
+        map.id,
+        world.generatorVersion,
+        world.datasetVersion,
+        world.configVersion,
+        JSON.stringify(world),
+        JSON.stringify(map),
+      );
+    return { world, map };
   }
 
   recordTelemetry(event: TelemetryEvent): void {

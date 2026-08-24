@@ -27,7 +27,7 @@ export interface GenerateWorldInput {
 }
 
 /** Versão do algoritmo de geração. Bump obriga a regerar artefatos persistidos. */
-export const GENERATOR_VERSION = "2.0.0";
+export const GENERATOR_VERSION = "2.1.0";
 
 const DEFAULT_CONFIG: WorldGenerationConfig = {
   ...GAME_BALANCE.world,

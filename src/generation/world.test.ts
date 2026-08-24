@@ -4,7 +4,7 @@ import { loadBundledCatalog } from "../content/bundled.js";
 import { buildContentCatalog } from "../content/catalog.js";
 import { createBiomeField, majorityBiome } from "./biome-field.js";
 import { cellsForWord } from "./types.js";
-import { generateDailyWorld, validateWorld } from "./world.js";
+import { GENERATOR_VERSION, generateDailyWorld, validateWorld } from "./world.js";
 
 const fastConfig = {
   targetWords: 26,
@@ -42,7 +42,7 @@ describe("mundo diário", () => {
     const world = generateDailyWorld({ date: "2026-08-23", catalog, config: fastConfig });
 
     expect(world.schemaVersion).toBe(2);
-    expect(world.generatorVersion).toBe("2.0.0");
+    expect(world.generatorVersion).toBe(GENERATOR_VERSION);
     expect(world.biomeField.seed).toBeTypeOf("number");
     expect(world.biomeField.octaves).toBeGreaterThan(0);
     expect(world.id).toContain("-g2-");

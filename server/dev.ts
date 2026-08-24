@@ -9,7 +9,6 @@ const api = await buildServer({
   dataDirectory: process.env.DATA_DIR ?? ".data",
   logger: true,
   scheduler: true,
-  debug: true,
 });
 await api.listen({ host: "127.0.0.1", port: apiPort });
 
