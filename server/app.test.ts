@@ -3,7 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { buildServer } from "./app.js";
+import { DateTime } from "luxon";
+
+import { CANONICAL_TIME_ZONE, buildServer } from "./app.js";
 
 const GENERATION_TEST_TIMEOUT_MS = 20_000;
 
@@ -30,18 +32,24 @@ describe("HTTP público", () => {
     const dataDirectory = await mkdtemp(join(tmpdir(), "cruzaverso-daily-"));
     const app = await buildServer({ dataDirectory, serveFrontend: false });
 
+    // Fora do modo debug o `?date=` é ignorado: pedir uma data arbitrária tem
+    // que devolver o dia canônico, senão dá para espiar edições futuras. O teste
+    // pede uma data deliberadamente distante para provar isso — comparar com
+    // string fixa só funcionava enquanto "hoje" coincidisse com ela.
+    const canonico = DateTime.now().setZone(CANONICAL_TIME_ZONE).toISODate() as string;
     const first = await app.inject({
       method: "GET",
-      url: "/api/daily?date=2026-08-23",
+      url: "/api/daily?date=2031-12-25",
     });
     const second = await app.inject({
       method: "GET",
-      url: "/api/daily?date=2026-08-23",
+      url: "/api/daily?date=2031-12-25",
     });
 
     expect(first.statusCode).toBe(200);
     expect(second.json()).toEqual(first.json());
-    expect(first.json().map.date).toBe("2026-08-23");
+    expect(first.json().map.date).toBe(canonico);
+    expect(first.json().map.date).not.toBe("2031-12-25");
     expect(first.json().map.objects.filter((object: { type: string }) => object.type === "key")).toHaveLength(3);
     await expect(readFile(join(dataDirectory, "cruzaverso.sqlite"))).resolves.toBeTruthy();
 
