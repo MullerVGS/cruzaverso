@@ -323,7 +323,6 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 @keyframes point { to { transform: translateX(5px); } }
 .map-controls { position:absolute; top:34px; right:34px; display:grid; gap:5px; padding:6px; border:1px solid rgb(85 72 49 / 22%); border-radius:5px; background:rgb(244 231 198 / 88%); box-shadow:0 5px 16px rgb(0 0 0 / 18%); }
 .map-controls button { width:30px; height:30px; display:grid; place-items:center; padding:0; border:0; border-bottom:1px solid rgb(74 72 58 / 13%); color:#46534d; background:transparent; cursor:pointer; font-family:"EB Garamond", Georgia, serif; font-size:1rem; }.map-controls button:hover { color:#f8ead0; border-radius:3px; background:#5b6d64; }
-.dot { width: 8px; height: 8px; border-radius: 50%; }.dot.cotidiano { background:#758c68 }.dot.ciencia { background:#5583a2 }.dot.historia { background:#b1814e }.dot.cultura { background:#a8616c }
 
 
 /* Clue desk */
