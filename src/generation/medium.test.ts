@@ -30,7 +30,7 @@ describe("extração Medium", () => {
     );
     expect(map.objects.filter((object) => object.type === "key")).toHaveLength(3);
     expect(map.objects.filter((object) => object.type === "exit")).toHaveLength(1);
-    expect(map.objective).toEqual({ keysRequired: 2, keysAvailable: 3 });
+    expect(map.objective).toEqual({ kind: "keys-and-exit", keysRequired: 2, keysAvailable: 3 });
     expect(map.report.routePlans).toHaveLength(3);
     expect(map.report.routeDiversity).toBeGreaterThan(0);
     expect(map.report.candidateReports.length).toBeGreaterThan(1);
