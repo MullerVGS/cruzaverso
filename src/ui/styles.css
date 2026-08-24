@@ -388,9 +388,12 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 /* Moldura desenhada atrás de painel HTML */
 .sketch-frame { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .sketch-frame path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; opacity: .42; }
-.has-sketch-frame { position: relative; border-color: transparent !important; }
-/* .field-tip é fixed com left/bottom: conceder `relative` a derrubaria no fluxo. */
-.field-tip.has-sketch-frame { position: fixed; }
+/* A moldura só apaga a borda reta. Ela NÃO concede `position`: fazer isso
+   atropelava elementos já posicionados de mesma especificidade — `.field-tip`
+   (fixed) e `.map-controls` (absolute) caíam no fluxo. Quem precisa de contexto
+   de posicionamento declara abaixo, explicitamente. */
+.has-sketch-frame { border-color: transparent !important; }
+.objective-strip, .start-button, .clue-tabs button, .answer-slot, .icon-button, .map-cartouche { position: relative; }
 
 /* Cartucho da carta */
 .map-cartouche { position: absolute; left: 34px; bottom: 28px; min-width: 176px; padding: 13px 17px 11px; color: #4b4634; background: rgb(244 232 203 / 88%); box-shadow: 0 4px 16px rgb(0 0 0 / 22%); }
@@ -403,3 +406,7 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .powerup-grid button .powerup-glyph { color: #e5bb68; }
 .powerup-grid button:disabled .powerup-glyph { color: #8d8778; }
 .map-powerup-tooltip .powerup-glyph { flex: none; color: #e1b45f; }
+/* Estados fortes pedem traço mais firme que o padrão da moldura */
+.answer-slot.active .sketch-frame path { stroke: #a46f2d; stroke-width: 2.2; opacity: .95; }
+.answer-slot.in-ink .sketch-frame path { stroke: #3b554b; opacity: .8; }
+.clue-tabs button.active .sketch-frame path { stroke: #8c6736; stroke-width: 2; opacity: .9; }

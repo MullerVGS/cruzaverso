@@ -467,7 +467,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
         </div>
         <div className="header-actions">
           <span className="active-time" title="Tempo ativo nesta expedição">◷ {formatActiveTime(state.activeMs)}</span>
-          <button className="icon-button" type="button" onClick={() => setSettingsOpen((open) => !open)} aria-label="Abrir ajustes">⚙</button>
+          <button className="icon-button has-sketch-frame" type="button" onClick={() => setSettingsOpen((open) => !open)} aria-label="Abrir ajustes"><SketchFrame seed="ajustes" roughness={1} />⚙</button>
         </div>
       </header>
 
@@ -494,10 +494,11 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
                 role="listitem"
                 key={word.id}
                 data-word-id={word.id}
-                className={`${word.id === selectedWordId ? "active" : ""} ${state.solvedWordIds.includes(word.id) ? "solved" : ""}`}
+                className={`has-sketch-frame ${word.id === selectedWordId ? "active" : ""} ${state.solvedWordIds.includes(word.id) ? "solved" : ""}`}
                 onClick={() => setSelectedWordId(word.id)}
                 title={state.solvedWordIds.includes(word.id) ? word.answer : word.clues.normal}
               >
+                <SketchFrame seed={`aba:${word.id}`} roughness={1.1} />
                 <b>{index + 1}</b>
                 <span>{state.solvedWordIds.includes(word.id) ? word.answer : `${word.gridAnswer.length} letras`}</span>
                 <i>{word.orientation === "horizontal" ? "→" : "↓"}</i>
@@ -535,13 +536,14 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
                       <button
                         key={key}
                         type="button"
-                        className={`answer-slot ${index === activeCellIndex ? "active" : ""} ${inInk ? "in-ink" : ""}`}
+                        className={`answer-slot has-sketch-frame ${index === activeCellIndex ? "active" : ""} ${inInk ? "in-ink" : ""}`}
                         onClick={() => {
                           if (!inInk && !state.solvedWordIds.includes(selectedWord.id)) setEntryCell(index);
                           document.querySelector<HTMLInputElement>("#answer-input")?.focus();
                         }}
                         aria-label={`Letra ${index + 1}${value ? `: ${value}` : ": vazia"}`}
                       >
+                        <SketchFrame seed={`slot:${selectedWord.id}:${index}`} roughness={.9} />
                         {value}
                       </button>
                     );
