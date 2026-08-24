@@ -512,6 +512,7 @@ export function MapView({
             return (
               <text
                 key={`letter-${key}`}
+                data-letter-key={key}
                 x={cell.position.x * CELL + (CELL - 2) / 2}
                 y={cell.position.y * CELL + CELL * .68}
                 transform={`rotate(${rotation} ${cell.position.x * CELL + CELL / 2} ${cell.position.y * CELL + CELL / 2})`}
