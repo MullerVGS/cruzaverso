@@ -239,8 +239,11 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
       .filter((biome) => present.has(biome));
   }, [map.words]);
   const direction = objectiveDirection(map, state);
-  const cameraWidth = width / camera.zoom;
-  const cameraHeight = height / camera.zoom;
+  // A câmera enquadra o recorte com folga: sem ela a moldura do recorte cai
+  // exatamente na borda e some, e o sangramento — que é o indício de mapa
+  // maior — nunca aparece.
+  const cameraWidth = (width + BLEED * CELL) / camera.zoom;
+  const cameraHeight = (height + BLEED * CELL) / camera.zoom;
   const viewBox = `${camera.x - cameraWidth / 2} ${camera.y - cameraHeight / 2} ${cameraWidth} ${cameraHeight}`;
 
   function zoomBy(amount: number) {
