@@ -40,6 +40,26 @@ describe("artefato diário persistido", () => {
     store.close();
   }, GENERATION_TEST_TIMEOUT_MS);
 
+  it("descarta e regera artefato gravado com outro catálogo", async () => {
+    // Catálogo diferente produz outro quebra-cabeça. Servir o antigo esconderia
+    // a curadoria nova; e como o id do mapa agora inclui o dataset, o save do
+    // jogador fica órfão em vez de ser aplicado no quebra-cabeça errado.
+    const store = new DailyStore(await mkdtemp(join(tmpdir(), "cruzaverso-store-")));
+    const original = store.getOrCreate("2026-08-23");
+
+    const interno = store as unknown as { database: { prepare(sql: string): { run(...a: unknown[]): unknown } } };
+    interno.database
+      .prepare("UPDATE daily_artifacts SET dataset_version = ? WHERE date = ?")
+      .run("curadoria-v0", "2026-08-23");
+
+    expect(store.get("2026-08-23")).toBeNull();
+
+    const regerado = store.getOrCreate("2026-08-23");
+    expect(regerado.world.datasetVersion).toBe(original.world.datasetVersion);
+    expect(regerado.map.id).toBe(original.map.id);
+    store.close();
+  }, GENERATION_TEST_TIMEOUT_MS);
+
   it("preserva a telemetria quando o artefato é regerado", async () => {
     const store = new DailyStore(await mkdtemp(join(tmpdir(), "cruzaverso-store-")));
     const artefato = store.getOrCreate("2026-08-23");

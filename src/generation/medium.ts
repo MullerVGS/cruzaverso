@@ -399,7 +399,10 @@ export function generateMediumMap(world: DailyWorld): DailyMap {
 
   const map: DailyMap = {
     schemaVersion: 2,
-    id: `${world.date}-m2-${seedFingerprint(`${world.seed}:medium`)}`,
+    // O dataset entra na impressão digital: catálogo diferente produz outro
+    // quebra-cabeça, e sem isso ele herdaria o mesmo id — o save local passaria
+    // na checagem de `mapId` e escreveria letras nas células erradas.
+    id: `${world.date}-m2-${seedFingerprint(`${world.seed}:medium:${world.datasetVersion}`)}`,
     worldId: world.id,
     configVersion: world.configVersion,
     date: world.date,

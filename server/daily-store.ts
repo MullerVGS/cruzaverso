@@ -29,8 +29,11 @@ export interface TelemetryEvent {
 export class DailyStore {
   readonly databasePath: string;
   private readonly database: Database.Database;
+  /** Versão do catálogo embarcado nesta build; ver `get`. */
+  private readonly datasetVersion: string;
 
   constructor(dataDirectory: string) {
+    this.datasetVersion = loadBundledCatalog().datasetVersion;
     mkdirSync(dataDirectory, { recursive: true });
     this.databasePath = join(dataDirectory, "cruzaverso.sqlite");
     this.database = new Database(this.databasePath);
@@ -66,14 +69,17 @@ export class DailyStore {
   get(date: string): DailyArtifact | null {
     const row = this.database
       .prepare(
-        "SELECT world_json, map_json, generator_version FROM daily_artifacts WHERE date = ?",
+        "SELECT world_json, map_json, generator_version, dataset_version FROM daily_artifacts WHERE date = ?",
       )
-      .get(date) as (ArtifactRow & { generator_version: string }) | undefined;
+      .get(date) as (ArtifactRow & { generator_version: string; dataset_version: string }) | undefined;
     if (!row) return null;
     // Artefato de um gerador anterior não é servível: o cliente atual espera
     // campos que ele não tem. A regra do projeto é que mudança de algoritmo
     // exige incremento de versão — é esse incremento que autoriza reger.
+    // O dataset conta pelo mesmo motivo: catálogo diferente é outro
+    // quebra-cabeça, e servir o antigo esconderia a curadoria nova.
     if (row.generator_version !== GENERATOR_VERSION) return null;
+    if (row.dataset_version !== this.datasetVersion) return null;
     return {
       world: JSON.parse(row.world_json) as DailyWorld,
       map: JSON.parse(row.map_json) as DailyMap,

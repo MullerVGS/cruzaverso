@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { loadBundledCatalog } from "../content/bundled.js";
+import { buildContentCatalog } from "../content/catalog.js";
 import { createBiomeField, majorityBiome } from "./biome-field.js";
 import { cellsForWord } from "./types.js";
 import { generateDailyWorld, validateWorld } from "./world.js";
@@ -45,6 +46,23 @@ describe("mundo diário", () => {
     expect(world.biomeField.seed).toBeTypeOf("number");
     expect(world.biomeField.octaves).toBeGreaterThan(0);
     expect(world.id).toContain("-g2-");
+  });
+
+  it("dá ids diferentes a catálogos diferentes na mesma seed", () => {
+    // Sem isto, expandir o dataset produz outro quebra-cabeça com o mesmo id:
+    // o save local passa na checagem de `mapId` e escreve nas células erradas.
+    const entries = loadBundledCatalog().entries.map((entry) => ({ ...entry }));
+    const v1 = buildContentCatalog(entries, "catalogo-v1");
+    const v2 = buildContentCatalog(entries, "catalogo-v2");
+
+    const mundoV1 = generateDailyWorld({ date: "2026-08-23", catalog: v1, config: fastConfig });
+    const mundoV2 = generateDailyWorld({ date: "2026-08-23", catalog: v2, config: fastConfig });
+
+    expect(mundoV1.datasetVersion).toBe("catalogo-v1");
+    expect(mundoV2.datasetVersion).toBe("catalogo-v2");
+    expect(mundoV2.id).not.toBe(mundoV1.id);
+    // Mesmas entradas: só a etiqueta muda, então as palavras têm que coincidir.
+    expect(mundoV2.words.map((word) => word.entryId)).toEqual(mundoV1.words.map((word) => word.entryId));
   });
 
   it("cataloga cada palavra no bioma onde ela ocupa mais células", () => {
