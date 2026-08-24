@@ -99,40 +99,72 @@ describe("estado de uma run", () => {
     expect(state.finishedAtActiveMs).not.toBeNull();
   });
 
-  it("aplica os quatro powerups por dados sem criar progressão permanente", () => {
+  it("começa com o estipêndio inicial na carteira", () => {
+    const state = createInitialGameState(fixture());
+    expect(state.credits).toBe(15);
+    expect(state.creditsSpent).toBe(0);
+  });
+
+  it("paga um crédito por letra ao resolver a palavra", () => {
     const map = fixture();
     const word = availableWords(map, createInitialGameState(map))[0]!;
-    let state: GameState = {
-      ...createInitialGameState(map),
-      inventory: {
-        "reveal-letter": 1,
-        "simplify-clue": 1,
-        "reveal-area": 1,
-        "objective-direction": 1,
-      },
-    };
+    const before = createInitialGameState(map);
+    const after = fillAndSubmit(map, before, word.id);
+    expect(after.credits).toBe(before.credits + word.gridAnswer.length);
+    expect(after.creditsEarned).toBe(before.creditsEarned + word.gridAnswer.length);
+  });
 
-    state = applyGameAction(map, state, {
-      type: "use-powerup",
-      powerupType: "reveal-letter",
-      wordId: word.id,
-      position: cellsForWord(word)[0],
-    });
-    expect(Object.keys(state.ink)).toHaveLength(1);
-    state = applyGameAction(map, state, {
-      type: "use-powerup",
-      powerupType: "simplify-clue",
+  it("recusa o item sem saldo e não cobra nada", () => {
+    const map = fixture();
+    const word = availableWords(map, createInitialGameState(map))[0]!;
+    const poor = { ...createInitialGameState(map), credits: 3 };
+    const after = applyGameAction(map, poor, {
+      type: "use-item",
+      item: "simplify-clue",
       wordId: word.id,
     });
-    expect(state.simplifiedWordIds).toContain(word.id);
-    const previousZones = state.revealZones.length;
-    state = applyGameAction(map, state, { type: "use-powerup", powerupType: "reveal-area" });
-    expect(state.revealZones.length).toBe(previousZones + 1);
-    state = applyGameAction(map, state, {
-      type: "use-powerup",
-      powerupType: "objective-direction",
+    expect(after).toBe(poor);
+  });
+
+  it("cobra o item, revela a letra e marca a casa como comprada", () => {
+    const map = fixture();
+    const word = availableWords(map, createInitialGameState(map))[0]!;
+    const cell = cellsForWord(word)[0]!;
+    const before = { ...createInitialGameState(map), credits: 100 };
+    const after = applyGameAction(map, before, {
+      type: "use-item",
+      item: "reveal-letter",
+      position: cell,
     });
-    expect(state.directionUsesRemaining).toBeGreaterThan(0);
-    expect(Object.values(state.inventory)).toEqual([0, 0, 0, 0]);
+    expect(after.credits).toBe(90);
+    expect(after.creditsSpent).toBe(10);
+    expect(after.itemsUsed).toBe(1);
+    expect(after.ink[coordinateKey(cell)]).toBe(cell.letter);
+    expect(after.hintedCellKeys).toContain(coordinateKey(cell));
+  });
+
+  it("a segunda pista não apaga a primeira", () => {
+    const map = fixture();
+    const word = availableWords(map, createInitialGameState(map))[0]!;
+    const before = { ...createInitialGameState(map), credits: 100 };
+    const after = applyGameAction(map, before, {
+      type: "use-item",
+      item: "simplify-clue",
+      wordId: word.id,
+    });
+    expect(after.simplifiedWordIds).toContain(word.id);
+    expect(map.words.find((candidate) => candidate.id === word.id)?.clues.normal).toBeTruthy();
+  });
+
+  it("a luneta abre a área no ponto escolhido, não no explorador", () => {
+    const map = fixture();
+    const target = { x: map.spawn.x + 14, y: map.spawn.y + 14 };
+    const before = { ...createInitialGameState(map), credits: 100 };
+    const after = applyGameAction(map, before, {
+      type: "use-item",
+      item: "reveal-area",
+      position: target,
+    });
+    expect(isCoordinateRevealed(after, target)).toBe(true);
   });
 });
