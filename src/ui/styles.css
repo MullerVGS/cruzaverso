@@ -487,5 +487,5 @@ html[data-armed-item] .answer-slot { cursor: inherit; }
 .archive-status.is-playing { color: #5583a2; }
 .archive-status.is-new { color: #8a806b; }
 
-.landing-card .text-button { width: auto; margin-top: 10px; padding: 4px 0; color: #766e5d; font-size: .72rem; text-align: center; }
+.landing-card .text-button { display: block; width: auto; margin: 12px auto 0; padding: 4px 0; color: #766e5d; font-size: .72rem; text-align: center; }
 .landing-card .text-button:hover { color: #37423e; }
