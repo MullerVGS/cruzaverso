@@ -2,7 +2,7 @@ import { DateTime } from "luxon";
 
 import { loadBundledCatalog } from "../src/content/bundled.js";
 import { GAME_BALANCE } from "../src/config/game.js";
-import { generateMediumMap, validateDailyMap } from "../src/generation/medium.js";
+import { generateMediumMap, validateMediumMap } from "../src/generation/medium.js";
 import { generateDailyWorld, validateWorld } from "../src/generation/world.js";
 
 const startDateArgument = process.argv[2] ?? "2026-01-01";
@@ -49,7 +49,7 @@ const averageDifficulties: number[] = [];
 for (const date of dates) {
   const world = generateDailyWorld({ date, catalog });
   const map = generateMediumMap(world);
-  const errors = [...validateWorld(world), ...validateDailyMap(map)];
+  const errors = [...validateWorld(world), ...validateMediumMap(map)];
 
   if (errors.length > 0) invalid.push({ date, errors });
   if (world.words.length < GAME_BALANCE.world.targetWords) shortWorlds.push(date);

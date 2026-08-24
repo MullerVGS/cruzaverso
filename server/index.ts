@@ -8,7 +8,6 @@ const app = await buildServer({
   serveFrontend: true,
   logger: true,
   scheduler: true,
-  debug: process.env.ENABLE_DEBUG === "true",
 });
 
 await app.listen({ host: "0.0.0.0", port });

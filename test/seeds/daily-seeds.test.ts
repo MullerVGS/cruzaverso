@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { loadBundledCatalog } from "../../src/content/bundled.js";
 import { GAME_BALANCE } from "../../src/config/game.js";
-import { generateMediumMap, validateDailyMap } from "../../src/generation/medium.js";
+import { generateMediumMap, validateMediumMap } from "../../src/generation/medium.js";
 import { coordinateKey } from "../../src/generation/types.js";
 import { generateDailyWorld, validateWorld } from "../../src/generation/world.js";
 
@@ -23,7 +23,7 @@ describe("lote crítico de seeds diárias", () => {
 
       expect(validateWorld(world)).toEqual([]);
       expect(world.report.valid).toBe(true);
-      expect(validateDailyMap(map)).toEqual([]);
+      expect(validateMediumMap(map)).toEqual([]);
       expect(map.report.valid).toBe(true);
       expect(map.report.cycles).toBeGreaterThan(0);
       expect(map.report.routePlans).toHaveLength(3);
