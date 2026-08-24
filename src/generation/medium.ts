@@ -140,7 +140,6 @@ function growSection(
   }
   const cycles = Math.max(0, crossings - selected.length + 1);
   const degree = origins.reduce((total, id) => total + (graph.adjacency.get(id)?.size ?? 0), 0);
-  const biomes = new Set(selected.map((word) => word.biome)).size;
   const branchDistances = ordered.slice(0, selected.length).map(({ steps }) => steps);
   const depth = Math.max(0, ...branchDistances);
   const score =
@@ -148,7 +147,6 @@ function growSection(
     crossings * 6 +
     cycles * 65 +
     degree * 4 +
-    biomes * 12 +
     depth * 2 -
     Math.abs(selected.length - targetWords) * 30;
   return { spawn, words: selected, crossings, cycles, score };
@@ -400,14 +398,15 @@ export function generateMediumMap(world: DailyWorld): DailyMap {
   if (!section || section.words.length === 0) throw new Error("Mundo sem seção Medium viável");
 
   const map: DailyMap = {
-    schemaVersion: 1,
-    id: `${world.date}-medium-${seedFingerprint(`${world.seed}:medium`)}`,
+    schemaVersion: 2,
+    id: `${world.date}-m2-${seedFingerprint(`${world.seed}:medium`)}`,
     worldId: world.id,
     configVersion: world.configVersion,
     date: world.date,
     seed: `${world.seed}:medium`,
     size: "medium",
     biomeSites: world.biomeSites,
+    biomeField: world.biomeField,
     words: section.words,
     bounds: boundsForWords(section.words),
     spawn: section.spawn,

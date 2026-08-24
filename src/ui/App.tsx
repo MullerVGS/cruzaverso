@@ -4,6 +4,7 @@ import type { DailyMap } from "../generation/types.js";
 import { loadDailyMap, loadDebugMap } from "./api.js";
 import { GameScreen, loadSavedState } from "./GameScreen.js";
 import { playSound } from "./sfx.js";
+import { SketchFrame } from "./SketchFrame.js";
 
 type AppStage = "landing" | "game";
 
@@ -78,7 +79,8 @@ export function App() {
         <span className="landing-pin pin-one">✦</span>
         <span className="landing-pin pin-two">⌘</span>
       </div>
-      <section className="landing-card" aria-labelledby="game-title">
+      <section className="landing-card has-sketch-frame" aria-labelledby="game-title">
+        <SketchFrame seed="cartao-inicial" roughness={2.2} />
         <div className="logo-compass">✣</div>
         <p className="eyebrow">UM MUNDO NOVO, TODO DIA</p>
         <h1 id="game-title">Cruzaverso</h1>
@@ -95,7 +97,8 @@ export function App() {
         {error ? (
           <div className="landing-error"><strong>O mapa ficou preso na névoa.</strong><span>{error}</span><button type="button" onClick={() => location.reload()}>Tentar novamente</button></div>
         ) : (
-          <button className="start-button" type="button" disabled={!map} onClick={openGame}>
+          <button className="start-button has-sketch-frame" type="button" disabled={!map} onClick={openGame}>
+            <SketchFrame seed="botao-desbravar" roughness={1.4} />
             <span>{!map ? "Desenhando o atlas…" : saved?.status === "won" ? "Rever expedição de hoje" : saved ? "Continuar expedição" : "Desbravar o mapa"}</span>
             <i>→</i>
           </button>

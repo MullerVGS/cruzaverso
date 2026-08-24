@@ -27,6 +27,18 @@ test("uma expedição pode sair da primeira pista e chegar à vitória", async (
   await expect(page.getByRole("heading", { name: "Cruzaverso" })).toBeVisible();
   await page.getByRole("button", { name: /desbravar|continuar/i }).click();
   await expect(page.getByText("DIÁRIO DE CAMPO")).toBeVisible();
+
+  // O fundo precisa ser o campo de biomas desenhado, não as barras por palavra.
+  await expect(page.locator(".biome-atlas")).toBeVisible();
+  await expect(page.locator(".biome-coast path").first()).toBeAttached();
+  await expect(page.locator(".biome-washes")).toHaveCount(0);
+  await expect(page.locator(".fog-layer .fog-chart")).toBeAttached();
+  // A grade é traço à mão: nenhuma célula sobrou como retângulo.
+  await expect(page.locator(".crossword-cell rect")).toHaveCount(0);
+  await expect(page.locator(".crossword-cell path").first()).toBeAttached();
+  // O cartucho anuncia só os biomas presentes no recorte do dia.
+  const biomasNoMapa = new Set(map.words.map((word) => word.biome));
+  await expect(page.locator(".map-cartouche li")).toHaveCount(biomasNoMapa.size);
   if (process.env.CAPTURE_UI === "true") {
     await page.screenshot({ path: testInfo.outputPath("game-start.png"), fullPage: true });
   }
@@ -46,9 +58,14 @@ test("uma expedição pode sair da primeira pista e chegar à vitória", async (
   expect(powerup).toBeDefined();
   const powerupMarker = page.locator(`[data-powerup-id="${powerup!.id}"]`);
   await expect(powerupMarker).toBeVisible();
-  await expect(powerupMarker).toHaveClass(/is-under-letter/);
+  // Com a palavra resolvida a célula tem letra: o powerup vira selo de canto,
+  // desenhado acima das letras, e a letra continua legível.
+  await expect(powerupMarker).toHaveClass(/is-mark/);
+  await expect(powerupMarker.locator(".powerup-badge")).toBeVisible();
   await powerupMarker.hover();
-  await expect(page.getByRole("tooltip")).toBeVisible();
+  const tooltip = page.getByRole("tooltip");
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toContainText(/[A-Za-zÀ-ÿ]{4,}/);
   if (process.env.CAPTURE_UI === "true") {
     await page.screenshot({ path: testInfo.outputPath("powerup-tooltip.png"), fullPage: true });
   }

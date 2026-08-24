@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FocusEvent as ReactFocusEvent, type PointerEvent as ReactPointerEvent, type WheelEvent } from "react";
 
 import {
   isCoordinateRevealed,
@@ -15,8 +15,20 @@ import {
   type PowerupType,
 } from "../generation/types.js";
 import { BIOME_DEFINITIONS, POWERUP_DEFINITIONS } from "../config/game.js";
+import { sketchBlob, sketchRect } from "../render/sketch.js";
+import { BiomeAtlas } from "./BiomeAtlas.js";
+import { FogChart } from "./FogChart.js";
+import { PowerupGlyph } from "./PowerupGlyph.js";
+import { POWERUP_ART } from "./powerup-icons.js";
+import { SketchFrame } from "./SketchFrame.js";
 
 const CELL = 34;
+/** Células amostradas além do recorte: é o que faz a fronteira continuar do lado de fora. */
+const BLEED = 7;
+/** Traços de hachura de litoral proporcionais ao raio da abertura. */
+function hachureTicks(radius: number): number {
+  return Math.max(9, Math.min(40, Math.round(radius / 11)));
+}
 interface MapViewProps {
   map: DailyMap;
   state: GameState;
@@ -50,7 +62,10 @@ interface PowerupIconProps extends Coordinate {
   id: string;
   powerupType: PowerupType;
   underLetter: boolean;
-  onShowTooltip: (event: ReactPointerEvent<SVGGElement>, powerupType: PowerupType) => void;
+  onShowTooltip: (
+    event: ReactPointerEvent<SVGGElement> | ReactFocusEvent<SVGGElement>,
+    powerupType: PowerupType,
+  ) => void;
   onHideTooltip: () => void;
   onActivate: () => void;
 }
@@ -66,22 +81,49 @@ function PowerupIcon({
   onActivate,
 }: PowerupIconProps) {
   const definition = POWERUP_DEFINITIONS[powerupType];
+  const art = POWERUP_ART[powerupType];
+  // Com letra na célula, a letra manda: o powerup encolhe para um selo de canto.
+  const paths = underLetter ? art.mark : art.full;
+  const scale = underLetter ? 0.72 : 1;
+  const offset = underLetter
+    ? { x: CELL - 12.6, y: 1.4 }
+    : { x: (CELL - 2) / 2 - 12, y: (CELL - 2) / 2 - 12 };
+
   return (
     <g
-      className={`map-object powerup-object ${underLetter ? "is-under-letter" : ""}`}
+      className={`map-object powerup-object ${underLetter ? "is-mark" : "is-full"}`}
       transform={`translate(${x * CELL} ${y * CELL})`}
       data-powerup-id={id}
+      data-powerup-type={powerupType}
+      role="button"
+      tabIndex={0}
       aria-label={`${definition.name}: ${definition.description}`}
       onPointerEnter={(event) => onShowTooltip(event, powerupType)}
       onPointerMove={(event) => onShowTooltip(event, powerupType)}
       onPointerLeave={onHideTooltip}
+      onFocus={(event) => onShowTooltip(event, powerupType)}
+      onBlur={onHideTooltip}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onHideTooltip();
+        onActivate();
+      }}
       onClick={() => {
         onHideTooltip();
         onActivate();
       }}
     >
-      <path d="M17 3l4 9 9 4-9 4-4 10-4-10-9-4 9-4z" />
-      <circle cx="17" cy="16" r="3" />
+      {underLetter ? (
+        <circle className="powerup-badge" cx={CELL - 8} cy={6} r="6.6" />
+      ) : (
+        <circle className="powerup-halo" cx={(CELL - 2) / 2} cy={(CELL - 2) / 2} r="13" />
+      )}
+      <g className="powerup-art" transform={`translate(${offset.x} ${offset.y}) scale(${scale})`}>
+        {paths.map((path, index) => (
+          <path key={`${id}-${index}`} d={path} />
+        ))}
+      </g>
     </g>
   );
 }
@@ -119,6 +161,34 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
     }
     return [...index.entries()];
   }, [map]);
+  // O traço de cada célula e de cada moldura é estável: depende só do mapa.
+  // Sem o memo, digitar uma letra recalcularia ~250 paths tremidos.
+  const cellOutlines = useMemo(() => {
+    const outlines = new Map<string, string>();
+    for (const [key] of cellIndex) {
+      outlines.set(key, sketchRect(0, 0, CELL - 2, CELL - 2, `celula:${key}`, { roughness: .85, step: 14 }));
+    }
+    return outlines;
+  }, [cellIndex]);
+  const wordOutlines = useMemo(() => {
+    const outlines = new Map<string, string>();
+    for (const word of map.words) {
+      const horizontal = word.orientation === "horizontal";
+      const length = word.gridAnswer.length;
+      outlines.set(
+        word.id,
+        sketchRect(
+          word.start.x * CELL - 4,
+          word.start.y * CELL - 4,
+          (horizontal ? length : 1) * CELL + 6,
+          (horizontal ? 1 : length) * CELL + 6,
+          `moldura:${word.id}`,
+          { roughness: 1.3, step: 26 },
+        ),
+      );
+    }
+    return outlines;
+  }, [map.words]);
   const solved = new Set(state.solvedWordIds);
   const collected = new Set(state.collectedObjectIds);
   const detailedWordIds = useMemo(() => {
@@ -147,9 +217,34 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
       : state.ink[key] ?? state.pencil[key] ?? "",
     rotation: index % 3 === 0 ? -0.3 : index % 3 === 1 ? 0.25 : 0,
   }));
+  // Máscara da névoa, máscara inversa e litoral têm que compartilhar exatamente
+  // a mesma mancha, senão o contorno desenhado descola da abertura.
+  const openingPath = (zone: { x: number; y: number; radius: number }) =>
+    sketchBlob(
+      zone.x * CELL + CELL / 2,
+      zone.y * CELL + CELL / 2,
+      (zone.radius + .9) * CELL,
+      `${map.id}:abertura:${zone.x},${zone.y},${zone.radius}`,
+    );
+  const bleedBox = {
+    x: (map.bounds.minX - BLEED) * CELL,
+    y: (map.bounds.minY - BLEED) * CELL,
+    width: width + BLEED * 2 * CELL,
+    height: height + BLEED * 2 * CELL,
+  };
+  // A legenda anunciava os quatro biomas sempre; o recorte do dia costuma ter
+  // menos. Prometer bioma que não está no mapa é ruído, não informação.
+  const presentBiomes = useMemo(() => {
+    const present = new Set(map.words.map((word) => word.biome));
+    return (Object.keys(BIOME_DEFINITIONS) as Array<keyof typeof BIOME_DEFINITIONS>)
+      .filter((biome) => present.has(biome));
+  }, [map.words]);
   const direction = objectiveDirection(map, state);
-  const cameraWidth = width / camera.zoom;
-  const cameraHeight = height / camera.zoom;
+  // A câmera enquadra o recorte com folga: sem ela a moldura do recorte cai
+  // exatamente na borda e some, e o sangramento — que é o indício de mapa
+  // maior — nunca aparece.
+  const cameraWidth = (width + BLEED * CELL) / camera.zoom;
+  const cameraHeight = (height + BLEED * CELL) / camera.zoom;
   const viewBox = `${camera.x - cameraWidth / 2} ${camera.y - cameraHeight / 2} ${cameraWidth} ${cameraHeight}`;
 
   function zoomBy(amount: number) {
@@ -247,6 +342,43 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
         onWheel={handleWheel}
       >
         <defs>
+          <filter id="biome-wash-blur" x="-12%" y="-12%" width="124%" height="124%">
+            <feGaussianBlur stdDeviation={CELL * .55} />
+          </filter>
+          {Object.entries(BIOME_DEFINITIONS).map(([biome, definition]) => (
+            <pattern
+              key={`hatch-${biome}`}
+              id={`biome-hatch-${biome}`}
+              width="9"
+              height="9"
+              patternUnits="userSpaceOnUse"
+              patternTransform="rotate(38)"
+            >
+              <path d="M0 0v9" stroke={definition.color} strokeWidth="1.1" opacity=".24" />
+            </pattern>
+          ))}
+          {/* Ruído fractal é caro por pixel. Confinado a um ladrilho de 256px
+              com stitchTiles, o filtro roda uma vez e o navegador repete o
+              ladrilho; solto sobre o mapa inteiro ele era recalculado a cada
+              quadro de arrasto e travava o pan. */}
+          <filter id="fog-grain" x="0" y="0" width="256" height="256" filterUnits="userSpaceOnUse">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.014 0.019"
+              numOctaves="3"
+              seed="7"
+              stitchTiles="stitch"
+              result="nuvem"
+            />
+            <feColorMatrix
+              in="nuvem"
+              type="matrix"
+              values="0 0 0 0 .22  0 0 0 0 .27  0 0 0 0 .25  0 0 0 .55 0"
+            />
+          </filter>
+          <pattern id="fog-grain-tile" width="256" height="256" patternUnits="userSpaceOnUse">
+            <rect width="256" height="256" filter="url(#fog-grain)" />
+          </pattern>
           <filter id="paper-shadow" x="-30%" y="-30%" width="160%" height="160%">
             <feDropShadow dx="0" dy="2" stdDeviation="2" floodOpacity=".22" />
           </filter>
@@ -254,105 +386,101 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
             <image href="/assets/atlas-paper.png" width={width} height={height} preserveAspectRatio="xMidYMid slice" />
           </pattern>
           <radialGradient id="fog-haze" cx="42%" cy="38%" r="82%">
-            <stop offset="0" stopColor="rgb(236 230 213 / 24%)" />
-            <stop offset=".52" stopColor="rgb(55 68 62 / 20%)" />
-            <stop offset="1" stopColor="rgb(31 44 39 / 30%)" />
+            <stop offset="0" stopColor="rgb(224 214 188 / 30%)" />
+            <stop offset=".45" stopColor="rgb(96 104 88 / 38%)" />
+            <stop offset="1" stopColor="rgb(44 56 48 / 54%)" />
           </radialGradient>
           <filter id="fog-opening-soft" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="9" />
+            <feGaussianBlur stdDeviation="4" />
           </filter>
-          <mask
-            id="fog-mask"
-            x={map.bounds.minX * CELL}
-            y={map.bounds.minY * CELL}
-            width={width}
-            height={height}
-            maskUnits="userSpaceOnUse"
-          >
-            <rect
-              x={map.bounds.minX * CELL}
-              y={map.bounds.minY * CELL}
-              width={width}
-              height={height}
-              fill="white"
-            />
+          <mask id="fog-mask" {...bleedBox} maskUnits="userSpaceOnUse">
+            <rect {...bleedBox} fill="white" />
             <g filter="url(#fog-opening-soft)">
-              {state.revealZones.map((zone, index) => {
-                const centerX = zone.x * CELL + CELL / 2;
-                const centerY = zone.y * CELL + CELL / 2;
-                const radius = (zone.radius + .9) * CELL;
-                return (
-                  <polygon
-                    key={`fog-opening-${index}`}
-                    points={`${centerX},${centerY - radius} ${centerX + radius},${centerY} ${centerX},${centerY + radius} ${centerX - radius},${centerY}`}
-                    fill="black"
-                  />
-                );
-              })}
+              {state.revealZones.map((zone, index) => (
+                <path key={`fog-opening-${index}`} d={openingPath(zone)} fill="black" />
+              ))}
               {state.capturedCellKeys.map((key) => {
                 const cell = parseCoordinateKey(key);
                 return <rect key={`captured-${key}`} x={cell.x * CELL} y={cell.y * CELL} width={CELL} height={CELL} fill="black" />;
               })}
             </g>
           </mask>
+          {/* Inversa da névoa: o litoral desenhado só sobrevive do lado fechado,
+              então manchas sobrepostas não riscam o que já foi explorado. */}
+          <mask id="fog-coast-mask" {...bleedBox} maskUnits="userSpaceOnUse">
+            <rect {...bleedBox} fill="white" />
+            {state.revealZones.map((zone, index) => (
+              <path key={`coast-cut-${index}`} d={openingPath(zone)} fill="black" />
+            ))}
+          </mask>
         </defs>
-        <rect
-          x={map.bounds.minX * CELL}
-          y={map.bounds.minY * CELL}
-          width={width}
-          height={height}
-          rx="26"
-          fill="url(#paper-grain)"
-        />
-        <rect
-          className="paper-wash"
-          x={map.bounds.minX * CELL}
-          y={map.bounds.minY * CELL}
-          width={width}
-          height={height}
-          rx="26"
-        />
+        <rect {...bleedBox} fill="url(#paper-grain)" />
+        <rect className="paper-wash" {...bleedBox} />
 
-        <g className="biome-washes" aria-hidden="true">
-          {map.words.map((word) => {
-            const cells = cellsForWord(word);
-            const first = cells[0];
-            const last = cells.at(-1);
-            if (!first || !last) return null;
-            return (
-              <line
-                key={`biome-${word.id}`}
-                x1={first.x * CELL + CELL / 2}
-                y1={first.y * CELL + CELL / 2}
-                x2={last.x * CELL + CELL / 2}
-                y2={last.y * CELL + CELL / 2}
-                stroke={BIOME_DEFINITIONS[word.biome].color}
-                strokeWidth={CELL * 1.85}
-                strokeLinecap="round"
-              />
-            );
-          })}
-        </g>
+        <BiomeAtlas map={map} cell={CELL} bleed={BLEED} />
 
         {state.status !== "won" ? (
-          <g className="fog-layer" mask="url(#fog-mask)" aria-hidden="true">
-            <rect
-              x={map.bounds.minX * CELL}
-              y={map.bounds.minY * CELL}
-              width={width}
-              height={height}
-              rx="26"
-              className="fog-wash"
-            />
+          <>
+            <g className="fog-layer" mask="url(#fog-mask)" aria-hidden="true">
+              <rect {...bleedBox} className="fog-wash" />
+              <rect {...bleedBox} className="fog-grain" fill="url(#fog-grain-tile)" />
+              <FogChart map={map} cell={CELL} bleed={BLEED} />
+            </g>
+            <g className="fog-coast" mask="url(#fog-coast-mask)" aria-hidden="true">
+              {state.revealZones.map((zone, index) => {
+                const centerX = zone.x * CELL + CELL / 2;
+                const centerY = zone.y * CELL + CELL / 2;
+                const radius = (zone.radius + .9) * CELL;
+                return (
+                  <g key={`coast-${index}`}>
+                    <path className="coast-outline" d={openingPath(zone)} />
+                    {/* Hachura curta apontando para fora, como carta antiga
+                        marcando o lado desconhecido do litoral. */}
+                    <g className="coast-hachure">
+                      {Array.from({ length: hachureTicks(radius) }, (_, tick) => {
+                        const angle = (tick / hachureTicks(radius)) * Math.PI * 2;
+                        const inner = radius * .99;
+                        const outer = radius * (1.06 + (tick % 3) * .022);
+                        return (
+                          <path
+                            key={`hachura-${index}-${tick}`}
+                            d={`M${(centerX + Math.cos(angle) * inner).toFixed(2)} ${(centerY + Math.sin(angle) * inner).toFixed(2)} L${(centerX + Math.cos(angle) * outer).toFixed(2)} ${(centerY + Math.sin(angle) * outer).toFixed(2)}`}
+                          />
+                        );
+                      })}
+                    </g>
+                  </g>
+                );
+              })}
+            </g>
+          </>
+        ) : (
+          /* Vitória: a névoa sai, mas a carta fica. Sem isto o jogador clica em
+             "revelar atlas completo" e recebe um mapa pelado. */
+          <g className="fog-chart-revealed" aria-hidden="true">
+            <FogChart map={map} cell={CELL} bleed={BLEED} />
           </g>
-        ) : null}
+        )}
+
+        {/* Moldura do recorte: o traço trêmulo diz "isto é um pedaço", e as
+            fronteiras que a cruzam dizem de que mapa maior ele foi tirado. */}
+        <path
+          className="section-frame"
+          d={sketchRect(
+            map.bounds.minX * CELL,
+            map.bounds.minY * CELL,
+            width,
+            height,
+            `${map.id}:moldura`,
+            { roughness: 2.2, step: 40 },
+          )}
+        />
 
         <g className="word-frames" aria-hidden="true">
           {map.words.map((word) => {
-            const horizontal = word.orientation === "horizontal";
             const length = word.gridAnswer.length;
             return (
-              <rect
+              <path
                 key={`frame-${word.id}`}
                 data-word-frame={word.id}
                 data-word-length={length}
@@ -363,11 +491,7 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
                   solved.has(word.id) ? "is-solved" : "",
                   selectedWordId === word.id ? "is-selected" : "",
                 ].join(" ")}
-                x={word.start.x * CELL - 4}
-                y={word.start.y * CELL - 4}
-                width={(horizontal ? length : 1) * CELL + 6}
-                height={(horizontal ? 1 : length) * CELL + 6}
-                rx="7"
+                d={wordOutlines.get(word.id)}
               />
             );
           })}
@@ -400,8 +524,25 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
                 role="button"
                 tabIndex={-1}
               >
-                <rect width={CELL - 2} height={CELL - 2} rx="3" />
+                <path d={cellOutlines.get(key)} />
               </g>
+            );
+          })}
+        </g>
+
+        <g className="cell-letters" aria-hidden="true">
+          {cellViews.map(({ key, cell, detailed, cellSolved, value, rotation }) => {
+            if (!detailed || !value) return null;
+            return (
+              <text
+                key={`letter-${key}`}
+                x={cell.position.x * CELL + (CELL - 2) / 2}
+                y={cell.position.y * CELL + CELL * .68}
+                transform={`rotate(${rotation} ${cell.position.x * CELL + CELL / 2} ${cell.position.y * CELL + CELL / 2})`}
+                className={cellSolved || state.status === "won" ? "ink-letter" : "pencil-letter"}
+              >
+                {value}
+              </text>
             );
           })}
         </g>
@@ -427,31 +568,17 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
                 id={object.id}
                 powerupType={object.powerupType}
                 underLetter={Boolean(state.ink[objectKey] ?? state.pencil[objectKey])}
-                onShowTooltip={(event, powerupType) => setPowerupTooltip({
-                  powerupType,
-                  clientX: Math.max(14, Math.min(event.clientX + 14, window.innerWidth - 274)),
-                  clientY: Math.max(14, Math.min(event.clientY + 14, window.innerHeight - 104)),
-                })}
+                onShowTooltip={(event, powerupType) => {
+                  const anchor = event.currentTarget.getBoundingClientRect();
+                  setPowerupTooltip({
+                    powerupType,
+                    clientX: Math.max(14, Math.min(anchor.right + 12, window.innerWidth - 274)),
+                    clientY: Math.max(14, Math.min(anchor.bottom + 10, window.innerHeight - 104)),
+                  });
+                }}
                 onHideTooltip={() => setPowerupTooltip(null)}
                 onActivate={() => onCellClick(object.position, wordsAtObject)}
               />
-            );
-          })}
-        </g>
-
-        <g className="cell-letters" aria-hidden="true">
-          {cellViews.map(({ key, cell, detailed, cellSolved, value, rotation }) => {
-            if (!detailed || !value) return null;
-            return (
-              <text
-                key={`letter-${key}`}
-                x={cell.position.x * CELL + (CELL - 2) / 2}
-                y={cell.position.y * CELL + CELL * .68}
-                transform={`rotate(${rotation} ${cell.position.x * CELL + CELL / 2} ${cell.position.y * CELL + CELL / 2})`}
-                className={cellSolved || state.status === "won" ? "ink-letter" : "pencil-letter"}
-              >
-                {value}
-              </text>
             );
           })}
         </g>
@@ -475,18 +602,27 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
           <path d="M0-7 5 6 0 3-5 6z" />
         </g>
       </svg>
-      <div className="map-controls" aria-label="Controles do mapa">
+      <div className="map-controls has-sketch-frame" aria-label="Controles do mapa">
+        <SketchFrame seed="controles-mapa" roughness={1.2} />
         <button type="button" onClick={() => zoomBy(.35)} aria-label="Aproximar mapa">+</button>
         <button type="button" onClick={() => zoomBy(-.35)} aria-label="Afastar mapa">−</button>
         <button type="button" onClick={() => setCamera({ ...mapCenter, zoom: 1 })} aria-label="Ver mapa inteiro">⌗</button>
         <button type="button" onClick={() => setCamera({ x: state.player.x * CELL + CELL / 2, y: state.player.y * CELL + CELL / 2, zoom: Math.max(2, camera.zoom) })} aria-label="Centralizar no explorador">⌖</button>
       </div>
-      <div className="map-legend" aria-label="Legenda dos biomas">
-        <span className="fog-legend"><i className="fog-swatch" />Névoa oculta achados</span>
-        <span><i className="dot cotidiano" />Cotidiano</span>
-        <span><i className="dot ciencia" />Ciência</span>
-        <span><i className="dot historia" />História</span>
-        <span><i className="dot cultura" />Cultura Pop</span>
+      {/* Cartucho: em carta antiga é a caixa ornamentada que nomeia a folha.
+          É o lugar natural da legenda depois que tudo virou desenho. */}
+      <div className="map-cartouche has-sketch-frame" aria-label="Legenda do mapa">
+        <SketchFrame seed={`cartucho:${map.id}`} roughness={2} />
+        <strong>Carta de {map.date.split("-").reverse().join(" · ")}</strong>
+        <ul>
+          {presentBiomes.map((biome) => (
+            <li key={biome}>
+              <i style={{ background: BIOME_DEFINITIONS[biome].color }} />
+              {BIOME_DEFINITIONS[biome].label}
+            </li>
+          ))}
+        </ul>
+        <small>Além da névoa, o mapa segue por desbravar.</small>
       </div>
       {powerupTooltip ? (
         <div
@@ -494,7 +630,7 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
           role="tooltip"
           style={{ left: powerupTooltip.clientX, top: powerupTooltip.clientY }}
         >
-          <i>{POWERUP_DEFINITIONS[powerupTooltip.powerupType].icon}</i>
+          <PowerupGlyph powerupType={powerupTooltip.powerupType} size={26} />
           <span>
             <strong>{POWERUP_DEFINITIONS[powerupTooltip.powerupType].name}</strong>
             {POWERUP_DEFINITIONS[powerupTooltip.powerupType].description}
