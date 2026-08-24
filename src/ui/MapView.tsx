@@ -602,7 +602,8 @@ export function MapView({ map, state, selectedWordId, activeCellKey, availableWo
           <path d="M0-7 5 6 0 3-5 6z" />
         </g>
       </svg>
-      <div className="map-controls" aria-label="Controles do mapa">
+      <div className="map-controls has-sketch-frame" aria-label="Controles do mapa">
+        <SketchFrame seed="controles-mapa" roughness={1.2} />
         <button type="button" onClick={() => zoomBy(.35)} aria-label="Aproximar mapa">+</button>
         <button type="button" onClick={() => zoomBy(-.35)} aria-label="Afastar mapa">−</button>
         <button type="button" onClick={() => setCamera({ ...mapCenter, zoom: 1 })} aria-label="Ver mapa inteiro">⌗</button>
