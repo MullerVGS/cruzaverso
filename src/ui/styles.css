@@ -246,7 +246,7 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .wordmark small { color: #8e9b94; font-size: .59rem; letter-spacing: .12em; }
 .objective-strip { display: flex; align-items: center; gap: 12px; min-width: 390px; padding: 8px 14px; border: 1px solid rgb(220 199 145 / 16%); border-radius: 5px; background: rgb(248 229 181 / 5%); }
 .objective-icon { width: 34px; height: 34px; display: grid; place-items: center; color: #202c28; border-radius: 50%; background: #c79b50; }
-.objective-strip > span:nth-child(2) { display: flex; flex: 1; flex-direction: column; }
+.objective-strip > span:nth-of-type(2) { display: flex; flex: 1; flex-direction: column; }
 .objective-strip small { color: #a99a79; font-size: .55rem; font-weight: 800; letter-spacing: .14em; }
 .objective-strip strong { color: #ede9dc; font-size: .79rem; font-weight: 650; }
 .objective-strip b { color: #f5d895; font-size: 1.25rem; }.objective-strip b i { color: #75827c; font-size: .75rem; font-style: normal; }
@@ -259,8 +259,29 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .atlas-frame::before { content: ""; position: absolute; inset: 12px; border: 1px solid rgb(233 219 181 / 11%); border-radius: 18px; pointer-events: none; }
 .atlas { width: 100%; height: calc(100vh - 118px); display: block; cursor: grab; filter: drop-shadow(0 18px 22px rgb(0 0 0 / 32%)); touch-action: none; user-select: none; }
 .atlas:active { cursor: grabbing; }
-.paper-wash { fill: rgb(245 230 195 / 39%); stroke: rgb(71 63 44 / 30%); stroke-width: 2; }
-.biome-washes line { opacity: .17; mix-blend-mode: multiply; }
+.paper-wash { fill: rgb(245 230 195 / 39%); stroke: none; }
+/* Atlas de biomas: aguada borrada + hachura + costa desenhada */
+.biome-atlas { pointer-events: none; }
+.biome-wash { opacity: .16; mix-blend-mode: multiply; }
+.biome-texture { opacity: .3; mix-blend-mode: multiply; }
+.coast-halo { fill: none; stroke: rgb(94 78 52 / 16%); stroke-width: 6; stroke-linecap: round; }
+.coast-line { fill: none; stroke: rgb(74 62 43 / 62%); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 11 6; vector-effect: non-scaling-stroke; }
+.biome-labels text { fill: rgb(70 60 42 / 62%); font-family: "EB Garamond", Georgia, serif; font-size: 19px; font-style: italic; letter-spacing: .3em; text-anchor: middle; text-transform: uppercase; }
+.section-frame { fill: none; stroke: rgb(63 55 40 / 45%); stroke-width: 2.4; vector-effect: non-scaling-stroke; pointer-events: none; }
+
+/* A névoa é a carta antiga: toda a mobília vive dentro dela */
+.fog-grain { opacity: .72; }
+.fog-chart, .fog-chart-revealed { fill: none; stroke: rgb(58 50 36 / 34%); stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.fog-chart-revealed { opacity: .4; }
+.chart-graticule path { stroke: rgb(58 50 36 / 16%); stroke-width: 1; }
+.chart-rhumbs path { stroke: rgb(72 58 40 / 13%); stroke-width: .9; }
+.chart-rose path { stroke-width: 1.5; }
+.chart-rose .rose-point { fill: rgb(58 50 36 / 12%); }
+.chart-rose text { fill: rgb(58 50 36 / 44%); font-family: "EB Garamond", Georgia, serif; font-size: 17px; font-style: italic; text-anchor: middle; }
+.chart-ornaments path { stroke: rgb(72 58 40 / 26%); stroke-width: 1.3; }
+.fog-coast { fill: none; pointer-events: none; }
+.fog-coast .coast-outline { stroke: rgb(66 56 40 / 45%); stroke-width: 1.7; vector-effect: non-scaling-stroke; }
+.fog-coast .coast-hachure path { stroke: rgb(66 56 40 / 26%); stroke-width: 1.1; stroke-linecap: round; }
 .fog-layer { pointer-events: none; }
 .fog-wash { fill: url("#fog-haze"); }
 .word-frame { fill: none; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; transition: opacity .2s, stroke .2s; }
@@ -288,9 +309,13 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .key-object { fill: none; stroke: #8d6226; stroke-width: 3; }
 .exit-object { fill: rgb(68 91 77 / 12%); stroke: #40594e; stroke-width: 3; }
 .exit-object.is-locked { opacity:.68; stroke:#6d6050; stroke-dasharray:3 2; }.exit-object.is-unlocked { fill:rgb(199 157 78 / 28%); stroke:#986d2e; filter:drop-shadow(0 0 5px rgb(217 175 92 / 65%)); }
-.powerup-object { fill: #cf9e45; stroke: #fff0bd; stroke-width: 1.6; pointer-events: visiblePainted; cursor: help; transition: opacity .2s; }
-.powerup-object.is-under-letter { opacity: .14; }
-.powerup-object.is-under-letter:hover { opacity: .22; }
+.powerup-object { pointer-events: visiblePainted; cursor: help; }
+.powerup-object .powerup-art { fill: none; stroke: #6d4a1c; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.powerup-object .powerup-halo { fill: rgb(255 246 219 / 90%); stroke: #b3893f; stroke-width: 1.4; }
+.powerup-object .powerup-badge { fill: #d8a34c; stroke: #fff4d9; stroke-width: 1.5; }
+.powerup-object.is-mark .powerup-art { stroke: #43310f; stroke-width: 1.5; }
+.powerup-object:hover .powerup-halo, .powerup-object:focus-visible .powerup-halo { fill: #fffaea; stroke: #8a6224; }
+.powerup-object:hover .powerup-badge, .powerup-object:focus-visible .powerup-badge { fill: #eebb63; }
 .map-powerup-tooltip { position: fixed; z-index: 45; width: min(260px, calc(100vw - 28px)); display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px; color: #f6edd8; border: 1px solid rgb(225 196 132 / 28%); border-radius: 5px; background: #293a34; box-shadow: 0 8px 24px rgb(0 0 0 / 34%); pointer-events: none; font-size: .67rem; line-height: 1.42; }
 .map-powerup-tooltip > i { color: #e1b45f; font-family: "EB Garamond", Georgia, serif; font-size: 1.25rem; font-style: normal; line-height: 1; }
 .map-powerup-tooltip > span { display: flex; flex-direction: column; gap: 2px; }.map-powerup-tooltip strong { color: #f4d99f; font-size: .73rem; }

@@ -129,20 +129,24 @@ export function sketchCircle(
  */
 export function sketchBlob(cx: number, cy: number, radius: number, seed: string, wobble = 0.22): string {
   const base = hashString(seed);
-  const steps = 16;
+  // A resolução acompanha o raio: 16 pontos fixos davam segmentos de mais de
+  // 140px numa abertura grande, e a mancha lia como polígono em vez de costa.
+  const steps = Math.max(16, Math.min(64, Math.round(radius / 9)));
   const points: Point[] = [];
   for (let index = 0; index < steps; index += 1) {
     const angle = (index / steps) * Math.PI * 2;
     // Duas harmônicas: uma lenta dá a silhueta, uma rápida dá a irregularidade.
     const slow = jitter(base, index % steps);
-    const fast = jitter(base + 7, (index * 3) % steps);
+    const fast = jitter(base + 7, (index * 3) % Math.max(1, steps));
     const scale = 1 + slow * wobble + fast * wobble * 0.4;
     points.push({ x: cx + Math.cos(angle) * radius * scale, y: cy + Math.sin(angle) * radius * scale });
   }
   points.push({ ...(points[0] as Point) });
   return sketchPolyline(points, `${seed}:contorno`, {
-    step: radius / 2,
-    roughness: radius * 0.02,
+    // Passo curto de propósito: reamostrar em `radius / 2` deixava o jitter só
+    // nos vértices e o trecho entre eles saía reto — a mancha lia como polígono.
+    step: Math.max(7, radius / 26),
+    roughness: Math.max(1.2, radius * 0.012),
     passes: 1,
     closed: true,
   });
