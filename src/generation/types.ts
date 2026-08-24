@@ -73,11 +73,13 @@ export interface DailyWorld {
   candidateReports: GenerationReport[];
 }
 
-export type PowerupType =
+export type ItemType =
   | "reveal-letter"
   | "simplify-clue"
   | "reveal-area"
   | "objective-direction";
+
+export type MapMode = "daily" | "free";
 
 export type MapObject =
   | {
@@ -87,10 +89,14 @@ export type MapObject =
     }
   | {
       id: string;
-      type: "powerup";
-      powerupType: PowerupType;
+      type: "coin";
+      value: number;
       position: Coordinate;
     };
+
+export type MapObjective =
+  | { kind: "keys-and-exit"; keysRequired: 2; keysAvailable: 3 }
+  | { kind: "sandbox" };
 
 export interface DailyMapReport {
   valid: boolean;
@@ -129,11 +135,9 @@ export interface DailyMap {
   words: PlacedWord[];
   bounds: Bounds;
   spawn: Coordinate;
+  mode: MapMode;
   objects: MapObject[];
-  objective: {
-    keysRequired: 2;
-    keysAvailable: 3;
-  };
+  objective: MapObjective;
   report: DailyMapReport;
 }
 

@@ -1,5 +1,5 @@
 import type { BiomeId } from "../content/catalog.js";
-import type { PowerupType } from "../generation/types.js";
+import type { ItemType } from "../generation/types.js";
 
 export const GAME_BALANCE = {
   world: {
@@ -9,7 +9,7 @@ export const GAME_BALANCE = {
   },
   medium: {
     targetWords: { minInclusive: 20, maxExclusive: 27 },
-    powerups: { minInclusive: 4, maxExclusive: 7 },
+    coins: { minInclusive: 5, maxExclusive: 9 },
     keysAvailable: 3,
     keysRequired: 2,
   },
@@ -17,10 +17,17 @@ export const GAME_BALANCE = {
     initialRadius: 3,
     solvedWordRadius: 2,
     firstSolveRadius: 10,
-    revealAreaPowerupRadius: 8,
+    revealAreaRadius: 8,
   },
   objectiveDirectionSolvedWords: 3,
   activeTimeIdleAfterMs: 45_000,
+  economy: {
+    initialCredits: 15,
+    creditsPerLetter: 1,
+    captureCreditsPerCell: 0.5,
+    captureCreditsCap: 30,
+    coinValue: 12,
+  },
 } as const;
 
 export const BIOME_DEFINITIONS: Record<
@@ -53,42 +60,46 @@ export const BIOME_DEFINITIONS: Record<
   },
 };
 
-export const POWERUP_DEFINITIONS: Record<
-  PowerupType,
+export const ITEM_DEFINITIONS: Record<
+  ItemType,
   {
     icon: string;
     name: string;
     description: string;
-    spawnWeight: number;
-    effect: Record<string, number | string>;
+    price: number;
+    targeting: "cell" | "word" | "map" | "instant";
   }
 > = {
   "reveal-letter": {
     icon: "A·",
     name: "Letra encontrada",
-    description: "Revela uma letra da pista aberta.",
-    spawnWeight: 1.15,
-    effect: { letters: 1 },
+    description: "Revela uma letra de uma palavra aberta.",
+    // Abaixo da média de 7,3 letras do catálogo, comprar letra passa a se pagar
+    // com o crédito da própria palavra e a loja vira crédito infinito.
+    price: 10,
+    targeting: "cell",
   },
   "simplify-clue": {
     icon: "≋",
     name: "Outra pista",
-    description: "Troca a pista atual por uma versão mais direta.",
-    spawnWeight: 0.9,
-    effect: { clueTier: "simple" },
+    description: "Abre uma segunda pista, mais direta, sem apagar a original.",
+    price: 14,
+    targeting: "word",
   },
   "reveal-area": {
     icon: "◉",
     name: "Luneta",
-    description: "Abre uma área grande ao redor do explorador.",
-    spawnWeight: 0.85,
-    effect: { radius: GAME_BALANCE.fog.revealAreaPowerupRadius },
+    description: "Abre uma área grande onde você escolher.",
+    price: 18,
+    targeting: "map",
   },
   "objective-direction": {
     icon: "➶",
     name: "Bússola",
     description: "Aponta a direção aproximada do próximo objetivo.",
-    spawnWeight: 0.7,
-    effect: { solvedWords: GAME_BALANCE.objectiveDirectionSolvedWords },
+    price: 22,
+    targeting: "instant",
   },
 };
+
+export const ITEM_TYPES = Object.keys(ITEM_DEFINITIONS) as ItemType[];
