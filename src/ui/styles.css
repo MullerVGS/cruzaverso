@@ -291,14 +291,14 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .word-frame.is-solved { stroke: rgb(42 71 62 / 74%); stroke-width: 2; }
 .word-frame.is-selected { stroke: #a36f29; stroke-width: 3; opacity: 1; filter: drop-shadow(0 2px 2px rgb(67 48 25 / 20%)); }
 .crossword-cell { cursor: pointer; }
-.crossword-cell rect { fill: rgb(247 239 216 / 62%); stroke: #626659; stroke-width: 1.4; vector-effect: non-scaling-stroke; transition: opacity .2s, fill .2s, stroke .2s; }
-.crossword-cell.is-distant rect { fill: rgb(47 58 54 / 18%); stroke: rgb(50 59 54 / 28%); opacity: .6; }
-.crossword-cell.is-detailed rect { filter: url(#paper-shadow); }
-.crossword-cell.is-available rect { fill: rgb(255 249 231 / 92%); stroke: #5e665c; }
-.crossword-cell.is-available:hover rect { fill: #fff9e9; stroke: #9a7441; stroke-width: 2; }
-.crossword-cell.is-selected rect { fill: #fae9b9; stroke: #a67432; stroke-width: 2.3; }
-.crossword-cell.is-active rect { fill: #fff7df; stroke: #263e36; stroke-width: 3; }
-.crossword-cell.is-solved rect { fill: #f7ecd0; stroke: #344b43; stroke-width: 2; }
+.crossword-cell path { fill: rgb(247 239 216 / 62%); stroke: #626659; stroke-width: 1.4; vector-effect: non-scaling-stroke; transition: opacity .2s, fill .2s, stroke .2s; }
+.crossword-cell.is-distant path { fill: rgb(47 58 54 / 18%); stroke: rgb(50 59 54 / 28%); opacity: .6; }
+.crossword-cell.is-detailed path { filter: url(#paper-shadow); }
+.crossword-cell.is-available path { fill: rgb(255 249 231 / 92%); stroke: #5e665c; }
+.crossword-cell.is-available:hover path { fill: #fff9e9; stroke: #9a7441; stroke-width: 2; }
+.crossword-cell.is-selected path { fill: #fae9b9; stroke: #a67432; stroke-width: 2.3; }
+.crossword-cell.is-active path { fill: #fff7df; stroke: #263e36; stroke-width: 3; }
+.crossword-cell.is-solved path { fill: #f7ecd0; stroke: #344b43; stroke-width: 2; }
 .cell-letters { pointer-events: none; user-select: none; }.cell-letters text { font-size: 21px; text-anchor: middle; }
 .pencil-letter { fill: #6d7471; font-family: "Caveat", "Segoe Print", cursive; font-style: italic; opacity: .82; }
 .ink-letter { fill: #243934; font-family: "EB Garamond", Georgia, serif; font-weight: 750; }
