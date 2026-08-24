@@ -295,7 +295,7 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
    tracejada é trilha avistada mas ainda sem acesso, sólida é estrada aberta.
    `availableWords` devolve as resolvidas junto, daí o `:not(.is-solved)`. */
 .word-frame.is-distant { stroke: rgb(54 61 56 / 24%); stroke-width: 1; opacity: .42; }
-.word-frame.is-detailed { stroke: rgb(64 71 60 / 78%); stroke-width: 1.8; stroke-dasharray: 9 6; opacity: .9; }
+.word-frame.is-detailed { stroke: rgb(70 76 64 / 40%); stroke-width: 1.2; stroke-dasharray: 9 6; opacity: .55; }
 .word-frame.is-available:not(.is-solved) {
   stroke: #8a5d1d;
   stroke-width: 2.8;
@@ -313,8 +313,8 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
    zoom afastado — e o mapa inteiro parecia jogável. O preenchimento é que
    precisa carregar a hierarquia. */
 .crossword-cell.is-detailed:not(.is-available):not(.is-solved) path {
-  fill: rgb(206 191 158 / 55%);
-  stroke: rgb(88 92 78 / 45%);
+  fill: rgb(202 187 154 / 30%);
+  stroke: rgb(88 92 78 / 26%);
 }
 .crossword-cell.is-detailed path { filter: url(#paper-shadow); }
 .crossword-cell.is-available:not(.is-solved) path { fill: rgb(255 251 235 / 98%); stroke: #6f6242; }
