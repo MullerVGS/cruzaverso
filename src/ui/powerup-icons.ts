@@ -17,13 +17,19 @@ export const POWERUP_ART: Record<PowerupType, { full: string[]; mark: string[] }
     mark: ["M1.4 2.6q3-1.5 6 0t6 0v8.8q-3 1.5-6 0t-6 0z", "M4 6.4q3.5-1.2 7 0"],
   },
   "reveal-area": {
-    // Luneta de duas seções.
-    full: ["M3.2 9.6 9 7.4v9.2l-5.8-2.2z", "M9 7.4 16.4 4.6v14.8L9 16.6z", "M16.4 6.2 21.6 4.2v15.6l-5.2-2z"],
-    mark: ["M.8 5 4.4 3.6v6.8L.8 9z", "M4.4 3.6 9.4 1.7v10.6L4.4 10.4z"],
+    // Luneta: tubo levemente cônico, inclinado, com dois anéis de corpo.
+    // Desenhada na horizontal e com muita abertura, a forma lia como megafone;
+    // a inclinação e o afunilamento discreto (1,8:1) é que a fazem ler luneta.
+    full: [
+      "M6.5 20.7 3.5 17.3 16.2 2.8l5.6 6.4z",
+      "M14.1 15 9.9 10",
+      "M8.4 19.2 5 15.4",
+    ],
+    mark: ["M3.8 12.1 2 10.1 9.5 1.7l3.2 3.6z", "M8.2 8.7 5.7 5.9"],
   },
   "objective-direction": {
     // Bússola com agulha.
-    full: ["M12 2.4a9.6 9.6 0 1 0 .01 19.2A9.6 9.6 0 0 0 12 2.4", "M15.8 8.2 13 13l-4.8 2.8L11 11z", "M12 5.6v1.8M12 16.6v1.8M5.6 12h1.8M16.6 12h1.8"],
+    full: ["M12 2.4a9.6 9.6 0 1 0 .01 19.2A9.6 9.6 0 0 0 12 2.4", "M16.4 7.6 13.8 13.8 7.6 16.4 10.2 10.2z", "M12 5.6v1.8M12 16.6v1.8M5.6 12h1.8M16.6 12h1.8"],
     mark: ["M7 .7a6.3 6.3 0 1 0 .01 12.6A6.3 6.3 0 0 0 7 .7", "M9.6 4.4 8 7.1 5.3 8.7 6.9 6z"],
   },
 };
