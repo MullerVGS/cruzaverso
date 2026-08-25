@@ -125,8 +125,9 @@ export const ITEM_DEFINITIONS: Record<
 export const ITEM_TYPES = Object.keys(ITEM_DEFINITIONS) as ItemType[];
 
 /**
- * O explorador. A bússola é uma conquista permanente: o aro (housing) é único e
- * as agulhas (needles) são as skins que o jogador troca.
+ * O explorador. O aro (housing) é do explorador desde o primeiro passo; o que
+ * se conquista são as agulhas (needles), uma por marco. A inicial vem no kit,
+ * então nunca existe bússola sem agulha para pôr nela.
  *
  * As frações abaixo foram medidas na própria arte, não chutadas. `center` é o
  * centro do aro na imagem — que não é o centro da tela da imagem, porque as
@@ -157,6 +158,7 @@ export const EXPLORER = {
       id: "seta-rumo",
       label: "Seta de rumo",
       description: "Cheia, de cartografia: ponta vermelha, cauda verde.",
+      unlock: "initial",
       asset: "/assets/player-compass/needles/seta-rumo.png",
       pivot: { x: 0.5, y: 0.5762 },
       reach: 0.5247,
@@ -165,6 +167,7 @@ export const EXPLORER = {
       id: "lanca-bicolor",
       label: "Lança bicolor",
       description: "Clássica de bússola de bolso, lâmina em tinta e papel.",
+      unlock: "daily-win",
       asset: "/assets/player-compass/needles/lanca-bicolor.png",
       pivot: { x: 0.4996, y: 0.5363 },
       reach: 0.5096,
@@ -173,6 +176,7 @@ export const EXPLORER = {
       id: "pena-magnetica",
       label: "Pena magnética",
       description: "Bico de tinteiro sobre contrapeso de lacre.",
+      unlock: "free-win",
       asset: "/assets/player-compass/needles/pena-magnetica.png",
       pivot: { x: 0.4988, y: 0.5299 },
       reach: 0.4753,
@@ -182,4 +186,16 @@ export const EXPLORER = {
 
 export type NeedleId = (typeof EXPLORER.needles)[number]["id"];
 
+/** Como cada agulha entra no kit: no primeiro passo, ou por um marco. */
+export type NeedleUnlock = (typeof EXPLORER.needles)[number]["unlock"];
+
 export const NEEDLE_IDS = EXPLORER.needles.map((needle) => needle.id) as NeedleId[];
+
+/** A que já vem no kit. Buscada, não fixada, para a arte mandar na regra. */
+export const INITIAL_NEEDLE = EXPLORER.needles.find((needle) => needle.unlock === "initial")!
+  .id as NeedleId;
+
+/** A agulha por id, com a inicial como rede: quem pinta precisa de uma. */
+export function needleById(id: NeedleId): (typeof EXPLORER.needles)[number] {
+  return EXPLORER.needles.find((needle) => needle.id === id) ?? EXPLORER.needles[0]!;
+}

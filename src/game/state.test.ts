@@ -295,3 +295,60 @@ describe("rota do explorador", () => {
     expect(applyGameAction(map, andou, { type: "move", destination: andou.player })).toBe(andou);
   });
 });
+
+describe("fim da expedição livre", () => {
+  // Resolver o mapa inteiro deixa toda casa transitável, e é o que permite
+  // caminhar até cada moeda sem depender de onde o gerador as espalhou.
+  function livreResolvido() {
+    const world = generateDailyWorld({
+      date: "2026-08-23",
+      catalog: loadBundledCatalog(),
+      config: { targetWords: 38, attempts: 3, chunkCount: 14 },
+    });
+    const map = generateMediumMap(world, { mode: "free" });
+    let state = createInitialGameState(map);
+    for (const word of map.words) state = fillAndSubmit(map, state, word.id);
+    return { map, state };
+  }
+
+  it("a última moeda recolhida encerra a expedição livre", () => {
+    const { map, state } = livreResolvido();
+    const coins = map.objects.filter((object) => object.type === "coin");
+    expect(coins.length).toBeGreaterThan(1);
+
+    // Um passo pode apanhar mais de uma moeda: o explorador recolhe o que está
+    // no trajeto, não só o destino. Por isso a asserção é sobre o que sobrou no
+    // chão, e não sobre a ordem da lista.
+    const pendentes = (candidate: GameState) =>
+      coins.filter((coin) => !candidate.collectedObjectIds.includes(coin.id)).length;
+
+    let next = state;
+    for (const coin of coins) {
+      if (next.collectedObjectIds.includes(coin.id)) continue;
+      next = applyGameAction(map, next, { type: "move", destination: coin.position });
+      expect(next.status).toBe(pendentes(next) === 0 ? "won" : "playing");
+    }
+
+    expect(pendentes(next)).toBe(0);
+    expect(next.status).toBe("won");
+    expect(next.finishedAtActiveMs).toBe(next.activeMs);
+  });
+
+  it("resolver o mapa inteiro sem recolher moeda não encerra nada", () => {
+    const { state } = livreResolvido();
+    expect(state.status).toBe("playing");
+  });
+
+  it("a expedição diária ignora moedas e continua exigindo chaves e saída", () => {
+    const map = fixture();
+    expect(map.objective.kind).toBe("keys-and-exit");
+    let state = createInitialGameState(map);
+    for (const word of map.words) state = fillAndSubmit(map, state, word.id);
+    const keys = map.objects.filter((object) => object.type === "key");
+    for (const key of keys) {
+      state = applyGameAction(map, state, { type: "move", destination: key.position });
+    }
+    // Com todas as chaves na mão, só a saída encerra.
+    expect(state.status).toBe("playing");
+  });
+});

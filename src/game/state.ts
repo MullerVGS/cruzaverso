@@ -304,11 +304,25 @@ function submitWord(map: DailyMap, state: GameState, wordId: string): GameState 
   return next;
 }
 
-function finishIfExit(map: DailyMap, state: GameState, positionKey: string): GameState {
+function finishIfObjectiveMet(map: DailyMap, state: GameState, positionKey: string): GameState {
+  // Na expedição livre as moedas sempre foram o objetivo — `objectiveDirection`
+  // já aponta para a mais próxima ainda no chão. Recolher a última é a linha de
+  // chegada; um mapa sem moeda nenhuma não tem o que concluir.
+  if (map.objective.kind === "sandbox") {
+    const coins = map.objects.filter((object) => object.type === "coin");
+    const pending = coins.some((coin) => !state.collectedObjectIds.includes(coin.id));
+    if (coins.length === 0 || pending) return state;
+    return {
+      ...state,
+      status: "won",
+      finishedAtActiveMs: state.activeMs,
+      lastFeedback: { kind: "correct", message: "A última moeda saiu do chão." },
+    };
+  }
+
   const exit = map.objects.find(
     (object) => object.type === "exit" && coordinateKey(object.position) === positionKey,
   );
-  if (map.objective.kind !== "keys-and-exit") return state;
   if (!exit || state.keysCollected < map.objective.keysRequired) return state;
   return {
     ...state,
@@ -353,7 +367,7 @@ function move(map: DailyMap, state: GameState, destination: Coordinate): GameSta
     for (const object of map.objects) {
       if (coordinateKey(object.position) === key) next = withCollectedObject(next, object);
     }
-    next = finishIfExit(map, next, key);
+    next = finishIfObjectiveMet(map, next, key);
     if (next.status === "won") return next;
   }
   return next;

@@ -100,23 +100,33 @@ test("uma expedição pode sair da primeira pista e chegar à vitória", async (
     await page.screenshot({ path: testInfo.outputPath("victory.png"), fullPage: true });
   }
 
-  // Concluir uma expedição diária é a conquista da bússola: ela chega equipada,
-  // com as três agulhas, e a escolha atravessa o recarregamento.
-  await expect(page.locator(".summary-achievement")).toContainText("Bússola do explorador");
+  // Concluir uma expedição diária conquista a Lança bicolor: ela chega já na
+  // bússola, e a escolha atravessa o recarregamento.
+  await expect(page.locator(".summary-achievement")).toContainText("Lança bicolor");
   await page.getByRole("button", { name: "Revelar atlas completo" }).click();
   await expect(page.locator(".explorer-compass")).toBeVisible();
 
-  await page.getByRole("button", { name: "Abrir ajustes" }).click();
-  const agulhas = page.locator(".needle-picker button");
-  await expect(agulhas).toHaveCount(3);
-  await agulhas.nth(1).click();
-  await expect(agulhas.nth(1)).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("button", { name: "Instrumento do explorador" }).click();
+  const lanca = page.locator('.kit-panel [data-needle-id="lanca-bicolor"]');
+  await expect(lanca).not.toHaveClass(/is-locked/);
+  await expect(lanca).toHaveAttribute("aria-checked", "true");
+  // A agulha do modo livre não vem junto: cada marco solta a sua.
+  await expect(page.locator('.kit-panel [data-needle-id="pena-magnetica"]')).toHaveClass(/is-locked/);
+
+  await page.locator('.kit-panel [data-needle-id="seta-rumo"]').click();
+  await expect(page.locator('.kit-panel [data-needle-id="seta-rumo"]')).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
 
   await page.reload();
   await page.getByRole("button", { name: /rever|continuar|desbravar/i }).click();
   await page.getByRole("button", { name: "Revelar atlas completo" }).click();
-  await page.getByRole("button", { name: "Abrir ajustes" }).click();
-  await expect(page.locator(".needle-picker button").nth(1)).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("button", { name: "Instrumento do explorador" }).click();
+  await expect(page.locator('.kit-panel [data-needle-id="seta-rumo"]')).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
 });
 
 test("comprar um item cobra só quando ele aplica, e cancelar devolve tudo", async ({ page, request }, testInfo) => {
@@ -296,7 +306,7 @@ test("o teclado escreve, troca de palavra e move sem disputar letras com a câme
   );
 });
 
-test("a expedição livre é sandbox com moedas e o arquivo lista o que já saiu", async ({ page, request }, testInfo) => {
+test("a expedição livre não tem chave nem saída, e o arquivo lista o que já saiu", async ({ page, request }, testInfo) => {
   const seed = "nebulosa-e2e";
   const freeResponse = await request.get(`/api/world?seed=${seed}`);
   expect(freeResponse.status()).toBe(200);

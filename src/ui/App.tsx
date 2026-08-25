@@ -3,9 +3,11 @@ import { useEffect, useState } from "react";
 import type { DailyMap } from "../generation/types.js";
 import { Archive, type ArchiveStatus } from "./Archive.js";
 import { loadArchive, loadDailyMap, loadDailyMapByDate, loadFreeMap, type ArchiveEntry } from "./api.js";
+import { ExplorerKitControl } from "./ExplorerKitControl.js";
 import { GameScreen, loadSavedState } from "./GameScreen.js";
 import { playSound } from "./sfx.js";
 import { SketchFrame } from "./SketchFrame.js";
+import { useExplorerKit } from "./useExplorerKit.js";
 
 type AppStage = "landing" | "game";
 
@@ -68,6 +70,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [entries, setEntries] = useState<ArchiveEntry[]>([]);
   const [seed, setSeed] = useState("");
+  const { kit, updateKit } = useExplorerKit();
 
   useEffect(() => {
     let cancelled = false;
@@ -139,6 +142,7 @@ export function App() {
       </div>
       <section className="landing-card has-sketch-frame" aria-labelledby="game-title">
         <SketchFrame seed="cartao-inicial" roughness={2.2} />
+        <ExplorerKitControl kit={kit} onChange={updateKit} placement="landing" />
         <div className="logo-compass">✣</div>
         <p className="eyebrow">UM MUNDO NOVO, TODO DIA</p>
         <h1 id="game-title">Cruzaverso</h1>
@@ -154,7 +158,7 @@ export function App() {
               <span className="ticket-divider" />
               <span>
                 <small>MISSÃO</small>
-                <strong>{coins} moedas, sem fim</strong>
+                <strong>Recolher {coins} moedas</strong>
               </span>
             </>
           ) : (
@@ -223,7 +227,7 @@ export function App() {
           <button type="button" disabled={!seed.trim()} onClick={() => goTo({ seed: seed.trim() })}>
             Gerar expedição livre <i>→</i>
           </button>
-          <small>Sem chave e sem saída: só moedas, palavras e o mapa. Um mundo inédito leva alguns segundos.</small>
+          <small>Sem chave e sem saída: a expedição fecha quando a última moeda sai do chão. Um mundo inédito leva alguns segundos.</small>
         </div>
 
         <Archive entries={entries} statusOf={statusOf} onPick={(date) => goTo({ date })} />

@@ -237,7 +237,7 @@ export function MapView({
       .filter((biome) => present.has(biome));
   }, [map.words]);
   const direction = objectiveDirection(map, state);
-  const compassEquipped = kit.compassUnlocked && kit.compassEquipped;
+  const compassEquipped = kit.compassEquipped;
   const playerLetter =
     cellViews.find((view) => view.key === coordinateKey(state.player))?.value ?? "";
   // A câmera enquadra o recorte com folga: sem ela a moldura do recorte cai
