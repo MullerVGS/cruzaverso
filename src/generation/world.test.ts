@@ -8,6 +8,7 @@ import {
   GENERATOR_CONFIG_VERSION,
   GENERATOR_VERSION,
   generateDailyWorld,
+  type WorldGenerationSnapshot,
   validateWorld,
 } from "./world.js";
 
@@ -28,6 +29,35 @@ describe("mundo diário", () => {
     expect(validateWorld(first)).toEqual([]);
     expect(new Set(first.words.map((word) => word.entryId)).size).toBe(first.words.length);
     expect(first.report.valid).toBe(true);
+  });
+
+  it("observa as etapas sem alterar o mundo gerado", () => {
+    const catalog = loadBundledCatalog();
+    const baseline = generateDailyWorld({ date: "2026-08-23", catalog, config: fastConfig });
+    const snapshots: WorldGenerationSnapshot[] = [];
+
+    const observed = generateDailyWorld({
+      date: "2026-08-23",
+      catalog,
+      config: fastConfig,
+      observer(snapshot) {
+        snapshots.push(structuredClone(snapshot));
+        const mutable = snapshot as unknown as {
+          biomeSites: Array<{ x: number }>;
+          chunks: unknown[];
+          words: unknown[];
+        };
+        if (mutable.biomeSites[0]) mutable.biomeSites[0].x = 999_999;
+        mutable.chunks.length = 0;
+        mutable.words.length = 0;
+      },
+    });
+
+    expect(snapshots.map((snapshot) => snapshot.phase)).toEqual(
+      expect.arrayContaining(["biome-field", "chunks", "word-placed", "attempt-complete", "selected"]),
+    );
+    expect(snapshots.at(-1)?.phase).toBe("selected");
+    expect(observed).toEqual(baseline);
   });
 
   it("separa edições de datas diferentes", () => {

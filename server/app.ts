@@ -112,7 +112,8 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     const parsed = telemetrySchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: "invalid_event" });
     if ("optOut" in parsed.data) return reply.code(204).send();
-    if (process.env.TELEMETRY_ENABLED !== "false") store.recordTelemetry(parsed.data);
+    if (process.env.TELEMETRY_ENABLED !== "true") return reply.code(204).send();
+    store.recordTelemetry(parsed.data);
     return reply.code(202).send({ accepted: true });
   });
 

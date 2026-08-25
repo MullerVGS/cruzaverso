@@ -1,6 +1,12 @@
 import { BIOMES, type BiomeId, type ContentCatalog, type ContentEntry } from "../content/catalog.js";
 import { GAME_BALANCE } from "../config/game.js";
-import { biomeFieldSpecFromSeed, createBiomeField, majorityBiome, type BiomeField } from "./biome-field.js";
+import {
+  biomeFieldSpecFromSeed,
+  createBiomeField,
+  majorityBiome,
+  type BiomeField,
+  type BiomeFieldSpec,
+} from "./biome-field.js";
 import { SeededRandom, seedFingerprint } from "./random.js";
 import { crosswordDensity } from "./density.js";
 import {
@@ -28,7 +34,26 @@ export interface GenerateWorldInput {
   seed?: string;
   catalog: ContentCatalog;
   config?: Partial<WorldGenerationConfig>;
+  observer?: WorldGenerationObserver;
 }
+
+export type WorldGenerationPhase =
+  | "biome-field"
+  | "chunks"
+  | "word-placed"
+  | "attempt-complete"
+  | "selected";
+
+export interface WorldGenerationSnapshot {
+  readonly phase: WorldGenerationPhase;
+  readonly attempt: number;
+  readonly biomeSites: readonly BiomeSite[];
+  readonly biomeField: Readonly<BiomeFieldSpec>;
+  readonly chunks: readonly WorldChunk[];
+  readonly words: readonly PlacedWord[];
+}
+
+export type WorldGenerationObserver = (snapshot: WorldGenerationSnapshot) => void;
 
 /** Versão do algoritmo; o bump afeta somente edições ainda não publicadas. */
 export const GENERATOR_VERSION = "3.0.1";
@@ -51,6 +76,13 @@ interface PlacementOption {
   biome: BiomeId;
   crossings: number;
   score: number;
+}
+
+function emitSnapshot(
+  observer: WorldGenerationObserver | undefined,
+  snapshot: WorldGenerationSnapshot,
+): void {
+  if (observer) observer(structuredClone(snapshot));
 }
 
 function greatestCommonDivisor(left: number, right: number): number {
@@ -311,6 +343,7 @@ function buildAttempt(
   attempt: number,
   catalog: ContentCatalog,
   config: WorldGenerationConfig,
+  observer?: WorldGenerationObserver,
 ): DailyWorld {
   const random = new SeededRandom(`${seed}:attempt:${attempt}`);
   const availableBiomes = BIOMES.filter((biome) => catalog.byBiome[biome].length > 0);
@@ -318,7 +351,14 @@ function buildAttempt(
   const biomeSites = buildBiomeSites(random.fork("biomes"), availableBiomes);
   const biomeField = biomeFieldSpecFromSeed(`${seed}:attempt:${attempt}:field`);
   const field = createBiomeField(biomeField, biomeSites);
+  const observeAttempt = (
+    phase: Exclude<WorldGenerationPhase, "selected">,
+    chunks: readonly WorldChunk[] = [],
+    words: readonly PlacedWord[] = [],
+  ) => emitSnapshot(observer, { phase, attempt, biomeSites, biomeField, chunks, words });
+  observeAttempt("biome-field");
   const chunks = buildChunks(random.fork("chunks"), field, config.chunkCount);
+  observeAttempt("chunks", chunks);
   const originBiome = field.biomeAt(0, 0);
   // A palavra da origem herda o bioma que ela realmente ocupa, não o da casa
   // (0,0): a maioria decide, e o bioma da origem pode ser uma ilha estreita
@@ -350,6 +390,7 @@ function buildAttempt(
     toPlacedWord(initialEntry, 0, "horizontal", initialStart, centeredBiome(initialEntry)),
   ];
   const used = new Set([initialEntry.id]);
+  observeAttempt("word-placed", chunks, words);
 
   for (let index = 1; index < config.targetWords; index += 1) {
     const scheduledChunkIndex = index % chunks.length;
@@ -374,6 +415,7 @@ function buildAttempt(
     const option = random.pick(densestOptions);
     words.push(toPlacedWord(option.entry, index, option.orientation, option.start, option.biome));
     used.add(option.entry.id);
+    observeAttempt("word-placed", chunks, words);
   }
 
   const density = crosswordDensity(words);
@@ -416,6 +458,7 @@ function buildAttempt(
   world.report.errors = errors;
   world.report.valid = errors.length === 0;
   if (!world.report.valid) world.report.score -= errors.length * 1_000;
+  observeAttempt("attempt-complete", chunks, words);
   return world;
 }
 
@@ -423,12 +466,20 @@ export function generateDailyWorld(input: GenerateWorldInput): DailyWorld {
   const config = { ...DEFAULT_CONFIG, ...input.config };
   const seed = input.seed ?? `cruzaverso:${input.date}`;
   const candidates = Array.from({ length: config.attempts }, (_, attempt) =>
-    buildAttempt(input.date, seed, attempt, input.catalog, config),
+    buildAttempt(input.date, seed, attempt, input.catalog, config, input.observer),
   );
   candidates.sort((left, right) => right.report.score - left.report.score || left.report.attempt - right.report.attempt);
   const best = candidates[0];
   if (!best) throw new Error("Nenhum mundo candidato foi gerado");
   best.candidateReports = candidates.map((candidate) => ({ ...candidate.report }));
+  emitSnapshot(input.observer, {
+    phase: "selected",
+    attempt: best.report.attempt,
+    biomeSites: best.biomeSites,
+    biomeField: best.biomeField,
+    chunks: best.chunks,
+    words: best.words,
+  });
   return best;
 }
 

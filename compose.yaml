@@ -8,7 +8,7 @@ services:
     environment:
       PORT: "3000"
       DATA_DIR: /data
-      TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
+      TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-false}
     ports:
       - "127.0.0.1:${CRUZAVERSO_PORT:-3000}:3000"
     volumes:
