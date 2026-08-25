@@ -25,6 +25,23 @@ async function wallet(page: Page): Promise<number> {
   return Number(text.replace(/[^\d→]/g, " ").trim().split(/\s|→/)[0]);
 }
 
+test("compartilhamento de uso começa desligado e fica nos ajustes", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /desbravar|continuar|rever/i }).click();
+  await page.getByRole("button", { name: "Abrir ajustes" }).click();
+
+  const toggle = page.getByRole("checkbox", { name: "Compartilhar dados de uso" });
+  await expect(toggle).not.toBeChecked();
+  const started = page.waitForRequest((request) => {
+    if (!request.url().endsWith("/api/telemetry")) return false;
+    return (request.postDataJSON() as { event?: string }).event === "run_started";
+  });
+  await toggle.check();
+  await started;
+  await expect(toggle).toBeChecked();
+  expect(await page.evaluate(() => localStorage.getItem("cruzaverso:telemetry"))).toBe("on");
+});
+
 test("uma expedição pode sair da primeira pista e chegar à vitória", async ({ page, request }, testInfo) => {
   const dailyResponse = await request.get("/api/daily");
   const { map } = (await dailyResponse.json()) as { map: DailyMap };
@@ -54,8 +71,10 @@ test("uma expedição pode sair da primeira pista e chegar à vitória", async (
   if (process.env.CAPTURE_UI === "true") {
     await page.screenshot({ path: testInfo.outputPath("game-start.png"), fullPage: true });
   }
+  await page.getByRole("button", { name: "Entendi" }).click();
 
   const solved = new Set<string>();
+  let capturedMidgame = false;
   while (solved.size < map.words.length) {
     const word = nextReachableWord(map, solved);
     expect(word, "toda palavra deve chegar à fronteira resolvida").toBeDefined();
@@ -63,6 +82,14 @@ test("uma expedição pode sair da primeira pista e chegar à vitória", async (
     await page.locator("#answer-input").fill(word!.gridAnswer);
     await expect(page.getByText("O caminho ganhou tinta.")).toBeVisible();
     solved.add(word!.id);
+    if (
+      process.env.CAPTURE_UI === "true" &&
+      !capturedMidgame &&
+      solved.size >= Math.ceil(map.words.length / 3)
+    ) {
+      await page.screenshot({ path: testInfo.outputPath("em-jogo.png"), fullPage: true });
+      capturedMidgame = true;
+    }
   }
 
   // Resolver a rede inteira tem que ter pago crédito por letra e por captura.

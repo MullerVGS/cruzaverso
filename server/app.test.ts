@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import Database from "better-sqlite3";
 import { DateTime } from "luxon";
 
 import { CANONICAL_TIME_ZONE, buildServer } from "./app.js";
@@ -55,30 +56,52 @@ describe("HTTP público", () => {
     await app.close();
   }, GENERATION_TEST_TIMEOUT_MS);
 
-  it("aceita telemetria anônima mínima e respeita opt-out", async () => {
-    const dataDirectory = await mkdtemp(join(tmpdir(), "cruzaverso-telemetry-"));
-    const app = await buildServer({ dataDirectory, serveFrontend: false });
+  it("grava telemetria somente após opt-in explícito do operador", async () => {
+    const previous = process.env.TELEMETRY_ENABLED;
+    const payload = {
+      runId: "6e2eca51-f32b-41bd-8a47-b61945788156",
+      mapId: "2026-08-23-medium-demo",
+      event: "word_solved",
+      elapsedActiveMs: 1234,
+      payload: { solvedWords: 2 },
+    };
+    const countEvents = (directory: string) => {
+      const database = new Database(join(directory, "cruzaverso.sqlite"), { readonly: true });
+      const result = database.prepare("SELECT count(*) AS total FROM telemetry_events").get() as {
+        total: number;
+      };
+      database.close();
+      return result.total;
+    };
 
-    const accepted = await app.inject({
-      method: "POST",
-      url: "/api/telemetry",
-      payload: {
-        runId: "6e2eca51-f32b-41bd-8a47-b61945788156",
-        mapId: "2026-08-23-medium-demo",
-        event: "word_solved",
-        elapsedActiveMs: 1234,
-        payload: { solvedWords: 2 },
-      },
-    });
-    const declined = await app.inject({
-      method: "POST",
-      url: "/api/telemetry",
-      payload: { optOut: true },
-    });
+    try {
+      delete process.env.TELEMETRY_ENABLED;
+      const disabledDirectory = await mkdtemp(join(tmpdir(), "cruzaverso-telemetry-off-"));
+      const disabled = await buildServer({ dataDirectory: disabledDirectory, serveFrontend: false });
+      const ignored = await disabled.inject({ method: "POST", url: "/api/telemetry", payload });
+      await disabled.close();
 
-    expect(accepted.statusCode).toBe(202);
-    expect(declined.statusCode).toBe(204);
-    await app.close();
+      expect(ignored.statusCode).toBe(204);
+      expect(countEvents(disabledDirectory)).toBe(0);
+
+      process.env.TELEMETRY_ENABLED = "true";
+      const enabledDirectory = await mkdtemp(join(tmpdir(), "cruzaverso-telemetry-on-"));
+      const enabled = await buildServer({ dataDirectory: enabledDirectory, serveFrontend: false });
+      const accepted = await enabled.inject({ method: "POST", url: "/api/telemetry", payload });
+      const declined = await enabled.inject({
+        method: "POST",
+        url: "/api/telemetry",
+        payload: { optOut: true },
+      });
+      await enabled.close();
+
+      expect(accepted.statusCode).toBe(202);
+      expect(declined.statusCode).toBe(204);
+      expect(countEvents(enabledDirectory)).toBe(1);
+    } finally {
+      if (previous === undefined) delete process.env.TELEMETRY_ENABLED;
+      else process.env.TELEMETRY_ENABLED = previous;
+    }
   });
 
   it("não existe mais rota de debug", async () => {

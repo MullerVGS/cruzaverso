@@ -2,6 +2,7 @@
   "name": "cruzaverso",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
@@ -16,6 +17,7 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "generate": "tsx scripts/generate-daily.ts",
+    "capture:worldgen": "tsx scripts/capture-worldgen.ts",
     "audit:seeds": "tsx scripts/audit-content-seeds.ts",
     "audit:editorial": "tsx scripts/audit-editorial.ts",
     "validate:content": "tsx scripts/validate-content.ts"

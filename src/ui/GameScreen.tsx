@@ -103,7 +103,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
     return Number.isFinite(stored) && stored >= 0 && stored <= 1 ? stored : 0.65;
   });
   const [telemetryEnabled, setTelemetryEnabled] = useState(
-    () => localStorage.getItem("cruzaverso:telemetry") !== "off",
+    () => localStorage.getItem("cruzaverso:telemetry") === "on",
   );
   const [tipVisible, setTipVisible] = useState(
     () => localStorage.getItem("cruzaverso:tutorial-seen") !== "yes",
@@ -179,7 +179,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   useEffect(() => stopWalk, []);
 
   useEffect(() => {
-    if (startedTelemetry.current) return;
+    if (!telemetryEnabled || startedTelemetry.current) return;
     startedTelemetry.current = true;
     sendTelemetry(telemetryEnabled, {
       runId,
@@ -587,13 +587,6 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   function setTelemetry(enabled: boolean) {
     setTelemetryEnabled(enabled);
     localStorage.setItem("cruzaverso:telemetry", enabled ? "on" : "off");
-    if (!enabled) {
-      void fetch("/api/telemetry", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ optOut: true }),
-      });
-    }
   }
 
   function dismissTip() {
@@ -745,7 +738,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
             setSoundVolume(volume);
             localStorage.setItem("cruzaverso:volume", String(volume));
           }} /></label>
-          <label title="Sem conta, fingerprint ou conteúdo dos palpites"><span>Métricas anônimas</span><input type="checkbox" checked={telemetryEnabled} onChange={(event) => setTelemetry(event.target.checked)} /></label>
+          <label><span>Compartilhar dados de uso</span><input type="checkbox" checked={telemetryEnabled} onChange={(event) => setTelemetry(event.target.checked)} /></label>
           <button type="button" className="text-button" disabled={state.status === "won"} onClick={resetDraft}>Apagar rascunho desta run</button>
           <button type="button" className="text-button" onClick={() => setSettingsOpen(false)}>Fechar</button>
         </aside>
