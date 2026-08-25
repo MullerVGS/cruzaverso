@@ -8,15 +8,7 @@ import {
   type GameAction,
   type GameState,
 } from "../game/state.js";
-import {
-  chooseNeedle,
-  equipCompass,
-  parseExplorerKit,
-  serializeExplorerKit,
-  unlockCompass,
-  unlocksCompass,
-  type ExplorerKit,
-} from "../game/explorer-kit.js";
+import { grantNeedle, needleEarnedBy } from "../game/explorer-kit.js";
 import { numberWords } from "../game/numbering.js";
 import { entryIndexForWord, eraseAt, typeAt } from "../game/typing.js";
 import {
@@ -27,22 +19,21 @@ import {
   type PlacedWord,
 } from "../generation/types.js";
 import { normalizeGridAnswer } from "../content/catalog.js";
-import { EXPLORER, GAME_BALANCE, ITEM_DEFINITIONS, type NeedleId } from "../config/game.js";
+import { EXPLORER, GAME_BALANCE, ITEM_DEFINITIONS, needleById, type NeedleId } from "../config/game.js";
 import { sendTelemetry } from "./api.js";
 import { ClueDesk } from "./ClueDesk.js";
+import { ExplorerKitControl } from "./ExplorerKitControl.js";
 import { ItemGlyph } from "./ItemGlyph.js";
 import { MapView } from "./MapView.js";
 import { Shop } from "./Shop.js";
 import { SketchFrame } from "./SketchFrame.js";
 import { useArmedItem } from "./useArmedItem.js";
+import { useExplorerKit } from "./useExplorerKit.js";
 import { playSound } from "./sfx.js";
 
 function saveKey(map: DailyMap): string {
   return `cruzaverso:save:${map.id}`;
 }
-
-/** O único estado que atravessa expedições, e é só cosmético. */
-const KIT_KEY = "cruzaverso:kit";
 
 /** Quanto tempo um recado fica na tela antes de sair sozinho. */
 const FEEDBACK_MS = 2_600;
@@ -117,8 +108,8 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   const [tipVisible, setTipVisible] = useState(
     () => localStorage.getItem("cruzaverso:tutorial-seen") !== "yes",
   );
-  const [kit, setKit] = useState<ExplorerKit>(() => parseExplorerKit(localStorage.getItem(KIT_KEY)));
-  const [compassJustUnlocked, setCompassJustUnlocked] = useState(false);
+  const { kit, kitRef, updateKit } = useExplorerKit();
+  const [earnedNeedle, setEarnedNeedle] = useState<NeedleId | null>(null);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const { armed, arm, disarm, targeting } = useArmedItem();
   const runId = useMemo(() => getRunId(map), [map]);
@@ -127,8 +118,6 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
   const activeCellIndexRef = useRef(0);
   const stateRef = useRef(state);
   stateRef.current = state;
-  const kitRef = useRef(kit);
-  kitRef.current = kit;
   // A caminhada é da interface, não do jogo: o reducer segue recebendo um passo
   // de cada vez, e é a fila que faz o explorador percorrer o corredor em vez de
   // aparecer do outro lado do mapa.
@@ -347,9 +336,10 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
     if (next.status === "won" && previous.status !== "won") {
       playSound("victory", soundLevel);
       setSummaryOpen(true);
-      if (unlocksCompass(map.mode, next.status) && !kitRef.current.compassUnlocked) {
-        updateKit(unlockCompass(kitRef.current));
-        setCompassJustUnlocked(true);
+      const earned = needleEarnedBy(map.mode, next.status);
+      if (earned && !kitRef.current.unlockedNeedles.includes(earned)) {
+        updateKit(grantNeedle(kitRef.current, earned));
+        setEarnedNeedle(earned);
       }
     } else if (next.keysCollected > previous.keysCollected || next.collectedObjectIds.length > previous.collectedObjectIds.length) {
       playSound("collect", soundLevel);
@@ -437,12 +427,6 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
       (cell) => coordinateKey(cell) === coordinateKey(position),
     );
     if (index >= 0 && !stateRef.current.ink[coordinateKey(position)]) setEntryCell(index);
-  }
-
-  function updateKit(next: ExplorerKit) {
-    kitRef.current = next;
-    setKit(next);
-    localStorage.setItem(KIT_KEY, serializeExplorerKit(next));
   }
 
   function setEntryCell(index: number) {
@@ -617,6 +601,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
     localStorage.setItem("cruzaverso:tutorial-seen", "yes");
   }
 
+  const isFree = map.mode === "free";
   const coinsTotal = map.objects.filter((object) => object.type === "coin").length;
   const coinsCollected = map.objects.filter(
     (object) => object.type === "coin" && state.collectedObjectIds.includes(object.id),
@@ -672,6 +657,7 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
             </span>
           ) : null}
           <span className="active-time" title="Tempo ativo nesta expedição">◷ {formatActiveTime(state.activeMs)}</span>
+          <ExplorerKitControl kit={kit} onChange={updateKit} placement="run" />
           <button className="icon-button has-sketch-frame" type="button" onClick={() => setSettingsOpen((open) => !open)} aria-label="Abrir ajustes"><SketchFrame seed="ajustes" roughness={1} />⚙</button>
         </div>
       </header>
@@ -748,43 +734,6 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
       {settingsOpen ? (
         <aside className="settings-popover">
           <h2>Ajustes da expedição</h2>
-          <section className="kit-panel">
-            <h3>Instrumento</h3>
-            {kit.compassUnlocked ? (
-              <>
-                <label>
-                  <span>Equipar a bússola</span>
-                  <input
-                    type="checkbox"
-                    checked={kit.compassEquipped}
-                    onChange={(event) => updateKit(equipCompass(kit, event.target.checked))}
-                  />
-                </label>
-                <div className="needle-picker" role="radiogroup" aria-label="Agulha da bússola">
-                  {EXPLORER.needles.map((needle) => (
-                    <button
-                      key={needle.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={kit.needle === needle.id}
-                      className={kit.needle === needle.id ? "is-chosen" : ""}
-                      disabled={!kit.compassEquipped}
-                      title={needle.description}
-                      onClick={() => updateKit(chooseNeedle(kit, needle.id as NeedleId))}
-                    >
-                      <img src={needle.asset} alt="" />
-                      <span>{needle.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <p className="kit-locked">
-                A bússola do explorador é uma conquista: conclua uma expedição diária e ela chega
-                com as três agulhas.
-              </p>
-            )}
-          </section>
           <label><span>Sons sutis</span><input type="checkbox" checked={soundsEnabled} onChange={(event) => {
             const enabled = event.target.checked;
             setSoundsEnabled(enabled);
@@ -808,11 +757,19 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
             <SketchFrame seed={map.id} roughness={2.4} />
             <span className="summary-compass">✣</span>
             <p className="eyebrow">EXPEDIÇÃO CONCLUÍDA</p>
-            <h1 id="summary-title">O mapa se abriu.</h1>
-            <p>Você encontrou uma saída do Cruzaverso de hoje. Todo o atlas e suas respostas agora estão visíveis.</p>
+            <h1 id="summary-title">{isFree ? "A carta ficou limpa." : "O mapa se abriu."}</h1>
+            <p>
+              {isFree
+                ? "Não sobrou moeda neste mundo. Todo o atlas e suas respostas agora estão visíveis."
+                : "Você encontrou uma saída do Cruzaverso de hoje. Todo o atlas e suas respostas agora estão visíveis."}
+            </p>
             <div className="summary-stats">
               <span><b>{state.solvedWordIds.length}</b> palavras em tinta</span>
-              <span><b>{state.keysCollected}</b> chaves encontradas</span>
+              {isFree ? (
+                <span><b>{coinsCollected}</b> moedas recolhidas</span>
+              ) : (
+                <span><b>{state.keysCollected}</b> chaves encontradas</span>
+              )}
               <span><b>{formatActiveTime(state.activeMs)}</b> tempo ativo</span>
               <span><b>{state.captures}</b> áreas capturadas</span>
               <span><b>{state.itemsUsed}</b> itens comprados</span>
@@ -820,17 +777,21 @@ export function GameScreen({ map, initialState, onBack }: GameScreenProps) {
               <span><b>{state.hintedCellKeys.length}</b> letras compradas</span>
               <span><b>{state.creditsEarned}</b> créditos ganhos</span>
             </div>
-            {compassJustUnlocked ? (
+            {earnedNeedle ? (
               <p className="summary-achievement">
-                <img src={EXPLORER.compass.housing} alt="" />
+                <img src={needleById(earnedNeedle).asset} alt="" />
                 <span>
-                  <b>Bússola do explorador</b>
-                  O instrumento é seu, com três agulhas. Troque a que preferir nos ajustes.
+                  <b>{needleById(earnedNeedle).label}</b>
+                  A agulha é sua, e já está na bússola. Troque a que preferir no instrumento.
                 </span>
               </p>
             ) : null}
             <button type="button" onClick={() => setSummaryOpen(false)}>Revelar atlas completo</button>
-            <small>Uma nova expedição nasce amanhã, no horário de São Paulo.</small>
+            <small>
+              {isFree
+                ? "Outra seed desenha outro mundo, a qualquer hora."
+                : "Uma nova expedição nasce amanhã, no horário de São Paulo."}
+            </small>
           </section>
         </div>
       ) : null}

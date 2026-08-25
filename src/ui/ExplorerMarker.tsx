@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { EXPLORER } from "../config/game.js";
+import { EXPLORER, needleById } from "../config/game.js";
 import type { ExplorerKit } from "../game/explorer-kit.js";
 
 interface ExplorerMarkerProps {
@@ -38,7 +38,7 @@ export function ExplorerMarker({
     return () => window.clearTimeout(timer);
   }, [x, y]);
 
-  if (!kit.compassUnlocked || !kit.compassEquipped) {
+  if (!kit.compassEquipped) {
     return (
       <g className="explorer-marker" transform={`translate(${x} ${y})`} aria-label="Sua posição">
         <circle r="11" />
@@ -47,8 +47,7 @@ export function ExplorerMarker({
     );
   }
 
-  const needle =
-    EXPLORER.needles.find((candidate) => candidate.id === kit.needle) ?? EXPLORER.needles[0]!;
+  const needle = needleById(kit.needle);
   const housingSize = cell * HOUSING_CELLS;
   const dialRadius = housingSize * EXPLORER.compass.dialRadius;
   // A agulha é dimensionada pelo alcance medido na arte, então trocar de skin

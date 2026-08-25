@@ -539,16 +539,41 @@ html[data-armed-item] .answer-slot { cursor: inherit; }
 @keyframes needle-sway { 0%, 100% { transform: rotate(-2.2deg); } 50% { transform: rotate(2.2deg); } }
 
 /* Instrumento nos ajustes */
-.kit-panel { margin-bottom: 6px; padding-bottom: 10px; border-bottom: 1px solid rgb(255 255 255 / 7%); }
-.kit-panel h3 { margin: 0 0 4px; color: #c4994e; font-family: "EB Garamond", Georgia, serif; font-size: .74rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
-.kit-panel label { border-bottom: 0; }
-.kit-locked { margin: 4px 0 2px; color: #97a09a; font-size: .68rem; line-height: 1.45; }
+/* Instrumento do explorador: botão e painel, iguais na tela inicial e na run. */
+.kit-control { position: relative; }
+.kit-control.is-landing { position: absolute; top: 18px; right: 18px; z-index: 5; }
+.kit-button { position: relative; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; background: none; cursor: pointer; }
+.kit-button img { width: 30px; height: 30px; object-fit: contain; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 35%)); }
+.kit-button:hover img { transform: rotate(-6deg); }
+.kit-button img { transition: transform .18s ease; }
+
+/* Na tela inicial o painel abre para fora do cartão: ancorado à esquerda ele
+   cobria justamente o nome do jogo. Em tela estreita volta para dentro. */
+.kit-control.is-landing .kit-panel { left: 0; right: auto; }
+@media (max-width: 1240px) { .kit-control.is-landing .kit-panel { left: auto; right: 0; } }
+.kit-panel { position: absolute; z-index: 40; top: 48px; right: 0; width: 268px; padding: 16px 18px 14px; color: #d9ddd6; border: 1px solid rgb(232 215 171 / 16%); border-radius: 5px; background: #26322e; box-shadow: 0 15px 40px rgb(0 0 0 / 42%); text-align: left; }
+.kit-panel h3 { margin: 0 0 10px; color: #c4994e; font-family: "EB Garamond", Georgia, serif; font-size: .74rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.kit-panel label { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; font-size: .75rem; }
+.kit-panel input { accent-color: #c4994e; }
+.kit-panel small { display: block; margin-top: 10px; color: #8d968f; font-size: .6rem; line-height: 1.45; }
+
+/* O aro com a agulha escolhida por cima: o painel mostra o instrumento montado. */
+.kit-preview { position: relative; display: grid; place-items: center; height: 96px; margin-bottom: 4px; }
+.kit-preview img { position: absolute; object-fit: contain; }
+.kit-preview .kit-housing { width: 96px; height: 96px; }
+.kit-preview .kit-needle { width: 50px; height: 50px; margin-top: -4px; }
+
 .needle-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 4px; }
 .needle-picker button { display: grid; justify-items: center; gap: 4px; padding: 7px 3px 6px; border: 1px solid rgb(232 215 171 / 14%); border-radius: 4px; color: #aeb5ae; background: rgb(255 255 255 / 3%); cursor: pointer; font-size: .53rem; line-height: 1.2; text-align: center; }
 .needle-picker button img { width: 34px; height: 34px; object-fit: contain; }
 .needle-picker button:hover:not(:disabled) { border-color: rgb(196 153 78 / 55%); color: #e7dcc2; }
 .needle-picker button.is-chosen { border-color: #c4994e; color: #f4e6c6; background: rgb(196 153 78 / 16%); }
-.needle-picker button:disabled { opacity: .3; cursor: default; }
+.needle-picker button:disabled { cursor: default; }
+/* Bloqueada não é apagada: a silhueta precisa dar vontade de conquistar. */
+.needle-picker button.is-locked { opacity: .78; border-style: dashed; border-color: rgb(232 215 171 / 22%); }
+.needle-picker button.is-locked img { filter: grayscale(.9) brightness(.92) contrast(.9); }
+.needle-picker button.is-locked span { color: #8e9891; font-style: italic; }
+.needle-picker button:disabled:not(.is-locked) { opacity: .3; }
 
 .summary-achievement { position: relative; display: flex; align-items: center; gap: 13px; margin: 0 0 20px; padding: 12px 16px; text-align: left; border: 1px dashed rgb(140 104 46 / 45%); border-radius: 4px; background: rgb(196 153 78 / 12%); }
 .summary-achievement img { width: 46px; height: 46px; flex: none; }
