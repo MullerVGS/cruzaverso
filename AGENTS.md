@@ -4,7 +4,7 @@ Jogo web single-player em que palavras formam caminhos num atlas diário.
 
 ## Ao começar
 
-- Leia `CONTEXT.md` para o vocabulário.
+- Leia `GLOSSARY.md` para o vocabulário.
 - Liste os nomes em `docs/adr/`; abra somente ADRs pertinentes à mudança.
 - Obedeça ao `AGENTS.md` mais próximo do arquivo alterado.
 
